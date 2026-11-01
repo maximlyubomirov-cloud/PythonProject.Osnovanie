@@ -4,10 +4,9 @@ from tkinter import ttk
 from tkinter import filedialog
 from datetime import datetime, timezone, timedelta
 import requests
-import json
 
 
-MSK = timezone(timedelta(hours=3))   # московское время (UTC+3)
+MSK = timezone(timedelta(hours=3))
 
 # ---- Metro UI палитра ----
 BG = "#FAFAFA"
@@ -24,10 +23,10 @@ FONT_DATA = ("Consolas", 10, "bold")
 
 def center_window(window, width, height):
     window.update_idletasks()
-    screen_width = window.winfo_screenwidth()
-    screen_height = window.winfo_screenheight()
-    x = (screen_width - width) // 2
-    y = (screen_height - height) // 2
+    sw = window.winfo_screenwidth()
+    sh = window.winfo_screenheight()
+    x = (sw - width) // 2
+    y = (sh - height) // 2
     window.geometry(f"{width}x{height}+{x}+{y}")
 
 
@@ -55,72 +54,93 @@ def to_msk(api_time_str):
 
 
 def format_rate(rate, target_code):
-    if target_code == "JPY":
-        return f"{rate:.2f}"
-    return f"{rate:.4f}"
+    return f"{rate:.2f}" if target_code == "JPY" else f"{rate:.4f}"
 
 
-# ---------- Второе окно: Metro + зелёные данные ----------
+# ---------- Второе окно ----------
 
-def show_centered_info(title, segments, raw_params=None):
-    """segments — список кортежей (текст, is_data).
-    is_data=True → чёрный фон, ярко-зелёный текст (только для курсов/времени).
-    Остальное — обычный Metro-интерфейс."""
+def make_data_box(parent, text):
+    """«Окошко» с данными: чёрный фон, ярко-зелёный текст."""
+    return Label(
+        parent, text=text,
+        bg=DATA_BG, fg=DATA_FG,
+        font=FONT_DATA,
+        padx=8, pady=2,
+        relief="flat", borderwidth=0,
+    )
+
+
+def style_btn(b, primary=True):
+    if primary:
+        b.configure(bg=ACCENT, fg="white",
+                    activebackground=ACCENT_DARK, activeforeground="white")
+    else:
+        b.configure(bg="#E0E0E0", fg=FG,
+                    activebackground="#D0D0D0", activeforeground=FG)
+    b.configure(relief="flat", borderwidth=0, padx=16, pady=6,
+                font=FONT_UI, cursor="hand2")
+
+
+def show_result_window(title, rows, raw_params=None):
+    """rows — список кортежей (label, value, is_data).
+    is_data=True → value выводится в «окошечке» (чёрный/зелёный).
+    Окно фиксированного размера, все данные видны, окошки справа."""
     win = Toplevel(root)
     win.title(title)
     win.configure(bg=BG)
-    win.resizable(True, True)
+    win.resizable(False, False)
 
-    # Текстовое поле: светлый фон Metro, тёмный текст
-    text = Text(
-        win, wrap="none", height=14,
-        bg=BG, fg=FG,
-        insertbackground=FG,
-        font=FONT_UI,
-        padx=12, pady=10,
-        relief="flat", borderwidth=0,
-        highlightthickness=0,
-    )
-    text.pack(fill="x", expand=False, padx=16, pady=(16, 6))
+    body = Frame(win, bg=BG)
+    body.pack(fill="both", expand=True, padx=16, pady=16)
 
-    # Тег «data» — чёрный фон, ярко-зелёный моноширинный
-    text.tag_configure(
-        "data",
-        background=DATA_BG,
-        foreground=DATA_FG,
-        font=FONT_DATA,
-    )
-    text.tag_configure("dim", foreground="#666666", font=("Segoe UI", 9))
+    body.columnconfigure(0, weight=1)   # подписи
+    body.columnconfigure(1, weight=0)   # окошки — по содержимому
 
-    # Вставляем сегменты
-    for seg, is_data in segments:
+    r = 0
+    for label_text, value_text, is_data in rows:
+        if label_text == "__header__":
+            lbl = Label(body, text=value_text, bg=BG, fg=FG,
+                        font=("Segoe UI", 11, "bold"))
+            lbl.grid(row=r, column=0, columnspan=2, sticky="w", pady=(8, 4))
+            r += 1
+            continue
+
+        if label_text == "__sep__":
+            Frame(body, height=1, bg="#E0E0E0").grid(
+                row=r, column=0, columnspan=2, sticky="ew", pady=6)
+            r += 1
+            continue
+
+        lbl = Label(body, text=label_text, bg=BG, fg=FG, font=FONT_UI)
+        lbl.grid(row=r, column=0, sticky="w", padx=(0, 12), pady=2)
+
         if is_data:
-            text.insert("end", seg, "data")
+            box = make_data_box(body, value_text)
+            box.grid(row=r, column=1, sticky="e", pady=2)
         else:
-            text.insert("end", seg)
+            val = Label(body, text=value_text, bg=BG, fg=FG, font=FONT_UI)
+            val.grid(row=r, column=1, sticky="e", pady=2)
+        r += 1
 
-    text.config(state="disabled")   # только чтение, но выделять/копировать можно
-
-    # Плоский текст для буфера/файла (без тегов)
-    plain = "".join(seg for seg, _ in segments)
-
-    # Фрейм кнопок — сразу под текстом, отступ ≤ 2 строк
+    # Кнопки — сразу под содержимым, отступ ≤ 2 строк
     btn_frame = Frame(win, bg=BG)
     btn_frame.pack(fill="x", padx=16, pady=(0, 12))
 
-    def style_btn(b, primary=True):
-        if primary:
-            b.configure(bg=ACCENT, fg="white",
-                        activebackground=ACCENT_DARK, activeforeground="white")
-        else:
-            b.configure(bg="#E0E0E0", fg=FG,
-                        activebackground="#D0D0D0", activeforeground=FG)
-        b.configure(relief="flat", borderwidth=0, padx=16, pady=6,
-                    font=FONT_UI, cursor="hand2")
+    # Плоский текст для буфера/файла
+    def plain_text():
+        lines = []
+        for label_text, value_text, _ in rows:
+            if label_text == "__header__":
+                lines.append(value_text)
+            elif label_text == "__sep__":
+                lines.append("")
+            else:
+                lines.append(f"{label_text}: {value_text}")
+        return "\n".join(lines)
 
     def copy_to_clipboard():
         win.clipboard_clear()
-        win.clipboard_append(plain)
+        win.clipboard_append(plain_text())
         mb.showinfo("Скопировано", "Текст скопирован в буфер обмена", parent=win)
 
     def save_to_file():
@@ -134,7 +154,7 @@ def show_centered_info(title, segments, raw_params=None):
             return
         try:
             with open(path, "w", encoding="utf-8") as f:
-                f.write(plain)
+                f.write(plain_text())
                 if raw_params:
                     f.write("\n\n--- Параметры запроса ---\n")
                     for k, v in raw_params.items():
@@ -155,10 +175,10 @@ def show_centered_info(title, segments, raw_params=None):
     style_btn(b_close, primary=False)
     b_close.pack(side="right")
 
-    # Размер и смещение относительно главного окна (не перекрывает его)
+    # Фиксированный размер ровно под содержимое + смещение от главного
     win.update_idletasks()
-    w = max(620, win.winfo_reqwidth())
-    h = max(420, win.winfo_reqheight())
+    w = win.winfo_reqwidth()
+    h = win.winfo_reqheight()
     win.geometry(f"{w}x{h}")
     position_near_parent(win, offset_x=40, offset_y=40)
 
@@ -237,33 +257,28 @@ def exchange():
         v2 = format_rate(rate_2, target_code)
         upd_msk = to_msk(upd_1)
 
-        # Сегменты: (текст, is_data). is_data=True → чёрный/зелёный.
-        # Курсы и время обновления — зелёные; подписи — обычные.
-        segments = [
-            ("Котировки (Base/Quote)\n\n", False),
+        # Строки: (label, value, is_data)
+        rows = [
+            ("__header__", "Котировки (Base/Quote)", False),
 
-            (f"{base_code_1}/{target_code}: ", False),
-            (v1, True),
-            ("  (Middle)\n", False),
-            (f"    {currencies[base_code_1]} → {currencies[target_code]}\n\n", False),
+            (f"{base_code_1}/{target_code}", v1, True),
+            ("", f"{currencies[base_code_1]} → {currencies[target_code]}", False),
 
-            (f"{base_code_2}/{target_code}: ", False),
-            (v2, True),
-            ("  (Middle)\n", False),
-            (f"    {currencies[base_code_2]} → {currencies[target_code]}\n\n", False),
+            (f"{base_code_2}/{target_code}", v2, True),
+            ("", f"{currencies[base_code_2]} → {currencies[target_code]}", False),
 
-            ("Время получения (локальное): ", False),
-            (now_local, True),
-            ("\nВремя получения (МСК):       ", False),
-            (now_msk, True),
-            ("\nПоследнее обновление (UTC):  ", False),
-            (upd_1 or "—", True),
-            ("\n  → по московскому времени: ", False),
-            (upd_msk, True),
-            (f"\n{freshness}\n\n", False),
+            ("__sep__", "", False),
+            ("__header__", "Время", False),
 
-            ("Источник курсов: open.er-api.com (ExchangeRate-API)\n", False),
-            ("API отдаёт средний курс (middle); Bid/Ask недоступны.", False),
+            ("Время получения (локальное)", now_local, True),
+            ("Время получения (МСК)", now_msk, True),
+            ("Последнее обновление (UTC)", upd_1 or "—", True),
+            ("Последнее обновление (МСК)", upd_msk, True),
+            ("Актуальность", freshness, False),
+
+            ("__sep__", "", False),
+            ("Источник", "open.er-api.com (ExchangeRate-API)", False),
+            ("Примечание", "API отдаёт средний курс (middle); Bid/Ask недоступны", False),
         ]
 
         raw_params = {
@@ -283,7 +298,7 @@ def exchange():
             "URL запроса 2": f"https://open.er-api.com/v6/latest/{base_code_2}",
         }
 
-        show_centered_info("Курсы обмена", segments, raw_params=raw_params)
+        show_result_window("Курсы обмена", rows, raw_params=raw_params)
     except requests.RequestException as e:
         mb.showerror("Ошибка сети", f"Не удалось получить данные: {e}")
     except ValueError as e:
@@ -293,16 +308,10 @@ def exchange():
 # ---------- Справочники ----------
 
 currencies = {
-    "USD": "Доллар США",
-    "EUR": "Евро",
-    "GBP": "Фунт стерлингов",
-    "JPY": "Японская йена",
-    "CNY": "Китайский юань",
-    "RUB": "Российский рубль",
-    "KZT": "Казахстанский тенге",
-    "BYN": "Белорусский рубль",
-    "AUD": "Австралийский доллар",
-    "NZD": "Новозеландский доллар",
+    "USD": "Доллар США", "EUR": "Евро", "GBP": "Фунт стерлингов",
+    "JPY": "Японская йена", "CNY": "Китайский юань", "RUB": "Российский рубль",
+    "KZT": "Казахстанский тенге", "BYN": "Белорусский рубль",
+    "AUD": "Австралийский доллар", "NZD": "Новозеландский доллар",
 }
 
 currency_symbols = {
@@ -311,7 +320,7 @@ currency_symbols = {
 }
 
 
-# ---------- Интерфейс (Metro UI) ----------
+# ---------- Главное окно (Metro UI) ----------
 
 root = Tk()
 root.title("Конвертер валют")
@@ -326,17 +335,10 @@ def metro_label(text, small=False):
                  font=("Segoe UI", 9) if small else FONT_UI)
 
 def metro_button(parent, text, command, primary=True):
-    b = Button(parent, text=text, command=command, relief="flat", borderwidth=0,
-               padx=16, pady=6, font=FONT_UI, cursor="hand2")
-    if primary:
-        b.configure(bg=ACCENT, fg="white",
-                    activebackground=ACCENT_DARK, activeforeground="white")
-    else:
-        b.configure(bg="#E0E0E0", fg=FG,
-                    activebackground="#D0D0D0", activeforeground=FG)
+    b = Button(parent, text=text, command=command)
+    style_btn(b, primary=primary)
     return b
 
-# Первая базовая валюта
 metro_label("Первая базовая валюта:").pack(pady=1)
 base_combobox = ttk.Combobox(container, values=list(currencies.keys()), state="readonly")
 base_combobox.pack()
@@ -345,7 +347,6 @@ base_combobox.set("USD")
 base_label = metro_label(f"{currencies['USD']} {currency_symbols['USD']}", small=True)
 base_label.pack()
 
-# Вторая базовая валюта
 metro_label("Вторая базовая валюта:").pack(pady=1)
 base_combobox_2 = ttk.Combobox(container, values=list(currencies.keys()), state="readonly")
 base_combobox_2.pack()
@@ -354,7 +355,6 @@ base_combobox_2.set("EUR")
 base_label_2 = metro_label(f"{currencies['EUR']} {currency_symbols['EUR']}", small=True)
 base_label_2.pack()
 
-# Целевая валюта
 metro_label("Целевая валюта:").pack(pady=1)
 target_combobox = ttk.Combobox(container, values=list(currencies.keys()), state="readonly")
 target_combobox.pack()
@@ -364,7 +364,6 @@ target_label = metro_label(f"{currencies['RUB']} {currency_symbols['RUB']}", sma
 target_label.pack()
 
 metro_button(container, "Получить курсы", exchange, primary=True).pack(pady=8)
-
 metro_label("Источник: open.er-api.com", small=True).pack(pady=(0, 4))
 
 root.mainloop()
