@@ -4,6 +4,9 @@ from tkinter import ttk
 from tkinter import filedialog
 from datetime import datetime, timezone, timedelta
 import requests
+import json
+import os
+import csv
 
 
 MSK = timezone(timedelta(hours=3))
@@ -11,7 +14,7 @@ MSK = timezone(timedelta(hours=3))
 # ---- Metro UI палитра ----
 BG = "#FAFAFA"
 FG = "#212121"
-HEADER_BG = "#D0D0D0"       # темнее основного фона (верхняя панель)
+HEADER_BG = "#D0D0D0"
 HEADER_FG = "#111111"
 DIVIDER = "#BDBDBD"
 ACCENT = "#0078D7"
@@ -21,6 +24,9 @@ DATA_FG = "#00FF00"
 FONT_UI = ("Segoe UI", 10)
 FONT_HEADER = ("Segoe UI", 12, "bold")
 FONT_DATA = ("Consolas", 10, "bold")
+
+HISTORY_JSON = "history.json"
+HISTORY_CSV = "history.csv"
 
 
 # ---------- Вспомогательные функции ----------
@@ -60,10 +66,32 @@ def format_rate(rate, target_code):
     return f"{rate:.2f}" if target_code == "JPY" else f"{rate:.4f}"
 
 
+# ---------- Лог запросов ----------
+
+def log_request(record: dict):
+    """Дописывает запрос в history.json и history.csv."""
+    history = []
+    if os.path.exists(HISTORY_JSON):
+        try:
+            with open(HISTORY_JSON, "r", encoding="utf-8") as f:
+                history = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            history = []
+    history.append(record)
+    with open(HISTORY_JSON, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+    file_exists = os.path.exists(HISTORY_CSV)
+    with open(HISTORY_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(record.keys()))
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(record)
+
+
 # ---------- Копирование значений ----------
 
 def flash(widget):
-    """Короткая подсветка окошка при копировании."""
     try:
         old = widget.cget("bg")
     except TclError:
@@ -79,7 +107,6 @@ def copy_value(value, widget):
 
 
 def attach_copy_menu(widget, value):
-    """ПКМ → 'Копировать значение'; двойной клик — тоже копирует."""
     menu = Menu(widget, tearoff=0)
     menu.add_command(label="Копировать значение",
                      command=lambda: copy_value(value, widget))
@@ -90,7 +117,6 @@ def attach_copy_menu(widget, value):
 # ---------- Второе окно ----------
 
 def make_data_box(parent, text, copyable=True):
-    """«Окошко» с данными: чёрный фон, ярко-зелёный текст."""
     box = Label(
         parent, text=text,
         bg=DATA_BG, fg=DATA_FG,
@@ -115,8 +141,6 @@ def style_btn(b, primary=True):
 
 
 def show_result_window(title, rows, raw_params=None, rates_only_text=""):
-    """rows — (label, value, is_data, copyable).
-    Окно фиксированного размера, окошки справа, копирование курсов."""
     win = Toplevel(root)
     win.title(title)
     win.configure(bg=BG)
@@ -156,7 +180,6 @@ def show_result_window(title, rows, raw_params=None, rates_only_text=""):
                 row=r, column=1, sticky="e", pady=2)
         r += 1
 
-    # Кнопки — сразу под содержимым, отступ ≤ 2 строк
     btn_frame = Frame(win, bg=BG)
     btn_frame.pack(fill="x", padx=16, pady=(0, 12))
 
@@ -299,10 +322,8 @@ def exchange():
         v2 = format_rate(rate_2, target_code)
         upd_msk = to_msk(upd_1)
 
-        # Копирование только курсов
         rates_only_text = f"{base_code_1}/{target_code}: {v1}\n{base_code_2}/{target_code}: {v2}"
 
-        # Строки: (label, value, is_data, copyable)
         rows = [
             ("__header__", "Котировки (Base/Quote)", False, False),
 
@@ -343,6 +364,21 @@ def exchange():
             "URL запроса 2": f"https://open.er-api.com/v6/latest/{base_code_2}",
         }
 
+        # Лог запроса в JSON/CSV
+        log_request({
+            "datetime_local": now_local,
+            "datetime_msk": now_msk,
+            "base_1": base_code_1,
+            "base_2": base_code_2,
+            "target": target_code,
+            "rate_1": v1,
+            "rate_2": v2,
+            "last_update_utc": upd_1 or "",
+            "last_update_msk": upd_msk,
+            "freshness": freshness,
+            "source": "open.er-api.com",
+        })
+
         show_result_window("Курсы обмена", rows,
                            raw_params=raw_params,
                            rates_only_text=rates_only_text)
@@ -374,14 +410,12 @@ root.title("Конвертер валют")
 root.configure(bg=BG)
 center_window(root, 360, 420)
 
-# Верхняя панель — темнее
 header = Frame(root, bg=HEADER_BG)
 header.pack(fill="x", side="top")
 Label(header, text="Конвертер валют", bg=HEADER_BG, fg=HEADER_FG,
       font=FONT_HEADER, pady=8).pack()
 Frame(root, height=1, bg=DIVIDER).pack(fill="x")
 
-# Контент
 container = Frame(root, bg=BG)
 container.pack(expand=True)
 
