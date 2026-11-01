@@ -1,0 +1,24 @@
+from tkinter import *
+
+image = 'cat3.ico'
+root = Tk()
+root.title('Бронирование')
+root.geometry('800x400')
+root.iconbitmap(image)
+
+frame1 = Frame(root)
+frame1.pack(pady=10)
+frame2= Frame(root)
+frame2.pack()
+
+screen = Label(frame1, text='ЭКРАН')
+screen.pack()
+
+canvas = Canvas(frame1, width=400, height=60)
+canvas.pack()
+
+
+canvas.create_line(50, 10, 350, 10, fill='light blue')
+
+
+root.config

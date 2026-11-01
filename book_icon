@@ -1,0 +1,9 @@
+from PyQt5.QtWidgets import QApplication, QMainWindow
+from PyQt5.QtGui import QIcon
+
+app = QApplication([])
+window = QMainWindow()
+window.setWindowTitle("Программа бронирования")
+window.setWindowIcon(QIcon('icon.png'))  # Поддерживает PNG, ICO, SVG
+window.show()
+app.exec_()
