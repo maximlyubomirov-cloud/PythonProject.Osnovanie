@@ -11,11 +11,15 @@ MSK = timezone(timedelta(hours=3))
 # ---- Metro UI палитра ----
 BG = "#FAFAFA"
 FG = "#212121"
+HEADER_BG = "#D0D0D0"       # темнее основного фона (верхняя панель)
+HEADER_FG = "#111111"
+DIVIDER = "#BDBDBD"
 ACCENT = "#0078D7"
 ACCENT_DARK = "#005A9E"
 DATA_BG = "#000000"
 DATA_FG = "#00FF00"
 FONT_UI = ("Segoe UI", 10)
+FONT_HEADER = ("Segoe UI", 12, "bold")
 FONT_DATA = ("Consolas", 10, "bold")
 
 
@@ -31,7 +35,6 @@ def center_window(window, width, height):
 
 
 def position_near_parent(win, offset_x=40, offset_y=40):
-    """Смещает окно относительно главного, чтобы не перекрывать его."""
     win.update_idletasks()
     root.update_idletasks()
     x = root.winfo_rootx() + offset_x
@@ -57,17 +60,47 @@ def format_rate(rate, target_code):
     return f"{rate:.2f}" if target_code == "JPY" else f"{rate:.4f}"
 
 
+# ---------- Копирование значений ----------
+
+def flash(widget):
+    """Короткая подсветка окошка при копировании."""
+    try:
+        old = widget.cget("bg")
+    except TclError:
+        return
+    widget.configure(bg="#003300")
+    widget.after(300, lambda: widget.configure(bg=old))
+
+
+def copy_value(value, widget):
+    widget.clipboard_clear()
+    widget.clipboard_append(value)
+    flash(widget)
+
+
+def attach_copy_menu(widget, value):
+    """ПКМ → 'Копировать значение'; двойной клик — тоже копирует."""
+    menu = Menu(widget, tearoff=0)
+    menu.add_command(label="Копировать значение",
+                     command=lambda: copy_value(value, widget))
+    widget.bind("<Button-3>", lambda e: menu.tk_popup(e.x_root, e.y_root))
+    widget.bind("<Double-Button-1>", lambda e: copy_value(value, widget))
+
+
 # ---------- Второе окно ----------
 
-def make_data_box(parent, text):
+def make_data_box(parent, text, copyable=True):
     """«Окошко» с данными: чёрный фон, ярко-зелёный текст."""
-    return Label(
+    box = Label(
         parent, text=text,
         bg=DATA_BG, fg=DATA_FG,
         font=FONT_DATA,
         padx=8, pady=2,
         relief="flat", borderwidth=0,
     )
+    if copyable:
+        attach_copy_menu(box, text)
+    return box
 
 
 def style_btn(b, primary=True):
@@ -81,10 +114,9 @@ def style_btn(b, primary=True):
                 font=FONT_UI, cursor="hand2")
 
 
-def show_result_window(title, rows, raw_params=None):
-    """rows — список кортежей (label, value, is_data).
-    is_data=True → value выводится в «окошечке» (чёрный/зелёный).
-    Окно фиксированного размера, все данные видны, окошки справа."""
+def show_result_window(title, rows, raw_params=None, rates_only_text=""):
+    """rows — (label, value, is_data, copyable).
+    Окно фиксированного размера, окошки справа, копирование курсов."""
     win = Toplevel(root)
     win.title(title)
     win.configure(bg=BG)
@@ -92,16 +124,18 @@ def show_result_window(title, rows, raw_params=None):
 
     body = Frame(win, bg=BG)
     body.pack(fill="both", expand=True, padx=16, pady=16)
-
-    body.columnconfigure(0, weight=1)   # подписи
-    body.columnconfigure(1, weight=0)   # окошки — по содержимому
+    body.columnconfigure(0, weight=1)
+    body.columnconfigure(1, weight=0)
 
     r = 0
-    for label_text, value_text, is_data in rows:
+    for row in rows:
+        label_text, value_text, is_data = row[0], row[1], row[2]
+        copyable = row[3] if len(row) > 3 else False
+
         if label_text == "__header__":
-            lbl = Label(body, text=value_text, bg=BG, fg=FG,
-                        font=("Segoe UI", 11, "bold"))
-            lbl.grid(row=r, column=0, columnspan=2, sticky="w", pady=(8, 4))
+            Label(body, text=value_text, bg=BG, fg=FG,
+                  font=("Segoe UI", 11, "bold")).grid(
+                row=r, column=0, columnspan=2, sticky="w", pady=(8, 4))
             r += 1
             continue
 
@@ -111,25 +145,25 @@ def show_result_window(title, rows, raw_params=None):
             r += 1
             continue
 
-        lbl = Label(body, text=label_text, bg=BG, fg=FG, font=FONT_UI)
-        lbl.grid(row=r, column=0, sticky="w", padx=(0, 12), pady=2)
+        Label(body, text=label_text, bg=BG, fg=FG, font=FONT_UI).grid(
+            row=r, column=0, sticky="w", padx=(0, 12), pady=2)
 
         if is_data:
-            box = make_data_box(body, value_text)
+            box = make_data_box(body, value_text, copyable=copyable)
             box.grid(row=r, column=1, sticky="e", pady=2)
         else:
-            val = Label(body, text=value_text, bg=BG, fg=FG, font=FONT_UI)
-            val.grid(row=r, column=1, sticky="e", pady=2)
+            Label(body, text=value_text, bg=BG, fg=FG, font=FONT_UI).grid(
+                row=r, column=1, sticky="e", pady=2)
         r += 1
 
     # Кнопки — сразу под содержимым, отступ ≤ 2 строк
     btn_frame = Frame(win, bg=BG)
     btn_frame.pack(fill="x", padx=16, pady=(0, 12))
 
-    # Плоский текст для буфера/файла
     def plain_text():
         lines = []
-        for label_text, value_text, _ in rows:
+        for row in rows:
+            label_text, value_text = row[0], row[1]
             if label_text == "__header__":
                 lines.append(value_text)
             elif label_text == "__sep__":
@@ -142,6 +176,11 @@ def show_result_window(title, rows, raw_params=None):
         win.clipboard_clear()
         win.clipboard_append(plain_text())
         mb.showinfo("Скопировано", "Текст скопирован в буфер обмена", parent=win)
+
+    def copy_rates_only():
+        win.clipboard_clear()
+        win.clipboard_append(rates_only_text)
+        mb.showinfo("Скопировано", "Только курсы скопированы в буфер обмена", parent=win)
 
     def save_to_file():
         path = filedialog.asksaveasfilename(
@@ -167,6 +206,10 @@ def show_result_window(title, rows, raw_params=None):
     style_btn(b_copy, primary=True)
     b_copy.pack(side="left", padx=(0, 8))
 
+    b_rates = Button(btn_frame, text="Копировать курсы", command=copy_rates_only)
+    style_btn(b_rates, primary=True)
+    b_rates.pack(side="left", padx=(0, 8))
+
     b_save = Button(btn_frame, text="Сохранить в файл", command=save_to_file)
     style_btn(b_save, primary=True)
     b_save.pack(side="left")
@@ -175,7 +218,6 @@ def show_result_window(title, rows, raw_params=None):
     style_btn(b_close, primary=False)
     b_close.pack(side="right")
 
-    # Фиксированный размер ровно под содержимое + смещение от главного
     win.update_idletasks()
     w = win.winfo_reqwidth()
     h = win.winfo_reqheight()
@@ -257,28 +299,31 @@ def exchange():
         v2 = format_rate(rate_2, target_code)
         upd_msk = to_msk(upd_1)
 
-        # Строки: (label, value, is_data)
+        # Копирование только курсов
+        rates_only_text = f"{base_code_1}/{target_code}: {v1}\n{base_code_2}/{target_code}: {v2}"
+
+        # Строки: (label, value, is_data, copyable)
         rows = [
-            ("__header__", "Котировки (Base/Quote)", False),
+            ("__header__", "Котировки (Base/Quote)", False, False),
 
-            (f"{base_code_1}/{target_code}", v1, True),
-            ("", f"{currencies[base_code_1]} → {currencies[target_code]}", False),
+            (f"{base_code_1}/{target_code}", v1, True, True),
+            ("", f"{currencies[base_code_1]} → {currencies[target_code]}", False, False),
 
-            (f"{base_code_2}/{target_code}", v2, True),
-            ("", f"{currencies[base_code_2]} → {currencies[target_code]}", False),
+            (f"{base_code_2}/{target_code}", v2, True, True),
+            ("", f"{currencies[base_code_2]} → {currencies[target_code]}", False, False),
 
-            ("__sep__", "", False),
-            ("__header__", "Время", False),
+            ("__sep__", "", False, False),
+            ("__header__", "Время", False, False),
 
-            ("Время получения (локальное)", now_local, True),
-            ("Время получения (МСК)", now_msk, True),
-            ("Последнее обновление (UTC)", upd_1 or "—", True),
-            ("Последнее обновление (МСК)", upd_msk, True),
-            ("Актуальность", freshness, False),
+            ("Время получения (локальное)", now_local, True, False),
+            ("Время получения (МСК)", now_msk, True, False),
+            ("Последнее обновление (UTC)", upd_1 or "—", True, False),
+            ("Последнее обновление (МСК)", upd_msk, True, False),
+            ("Актуальность", freshness, False, False),
 
-            ("__sep__", "", False),
-            ("Источник", "open.er-api.com (ExchangeRate-API)", False),
-            ("Примечание", "API отдаёт средний курс (middle); Bid/Ask недоступны", False),
+            ("__sep__", "", False, False),
+            ("Источник", "open.er-api.com (ExchangeRate-API)", False, False),
+            ("Примечание", "API отдаёт средний курс (middle); Bid/Ask недоступны", False, False),
         ]
 
         raw_params = {
@@ -298,7 +343,9 @@ def exchange():
             "URL запроса 2": f"https://open.er-api.com/v6/latest/{base_code_2}",
         }
 
-        show_result_window("Курсы обмена", rows, raw_params=raw_params)
+        show_result_window("Курсы обмена", rows,
+                           raw_params=raw_params,
+                           rates_only_text=rates_only_text)
     except requests.RequestException as e:
         mb.showerror("Ошибка сети", f"Не удалось получить данные: {e}")
     except ValueError as e:
@@ -320,24 +367,35 @@ currency_symbols = {
 }
 
 
-# ---------- Главное окно (Metro UI) ----------
+# ---------- Главное окно (Metro UI + тёмная шапка) ----------
 
 root = Tk()
 root.title("Конвертер валют")
 root.configure(bg=BG)
-center_window(root, 360, 380)
+center_window(root, 360, 420)
 
+# Верхняя панель — темнее
+header = Frame(root, bg=HEADER_BG)
+header.pack(fill="x", side="top")
+Label(header, text="Конвертер валют", bg=HEADER_BG, fg=HEADER_FG,
+      font=FONT_HEADER, pady=8).pack()
+Frame(root, height=1, bg=DIVIDER).pack(fill="x")
+
+# Контент
 container = Frame(root, bg=BG)
-container.place(relx=0.5, rely=0.5, anchor="center")
+container.pack(expand=True)
+
 
 def metro_label(text, small=False):
     return Label(container, text=text, bg=BG, fg=FG,
                  font=("Segoe UI", 9) if small else FONT_UI)
 
+
 def metro_button(parent, text, command, primary=True):
     b = Button(parent, text=text, command=command)
     style_btn(b, primary=primary)
     return b
+
 
 metro_label("Первая базовая валюта:").pack(pady=1)
 base_combobox = ttk.Combobox(container, values=list(currencies.keys()), state="readonly")
