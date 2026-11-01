@@ -8,8 +8,6 @@
 
 Ссылка на репозиторий с домашним заданием:
 https://github.com/maximlyubomirov-cloud/PythonProject.Osnovanie
-Токен для входа в мой репозиторий
-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
 
 В проекте:
 
