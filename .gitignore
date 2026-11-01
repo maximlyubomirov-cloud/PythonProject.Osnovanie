@@ -1,0 +1,24 @@
+﻿# Репозиторий преподавателя — не коммитим
+IgorLeonSimf/
+
+# Служебное Python/IDE
+.idea/
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+
+# Медиа и временные данные
+*.mp3
+*.jpg
+*.ico
+*.csv
+history.json
+dict.json
+code.txt
+text*.txt
+test.jpg
+01-Strah.mp3
+GraphEditor.spec
