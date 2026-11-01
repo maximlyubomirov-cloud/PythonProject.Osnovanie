@@ -9,11 +9,20 @@ import json
 
 MSK = timezone(timedelta(hours=3))   # московское время (UTC+3)
 
+# ---- Metro UI палитра ----
+BG = "#FAFAFA"
+FG = "#212121"
+ACCENT = "#0078D7"
+ACCENT_DARK = "#005A9E"
+DATA_BG = "#000000"
+DATA_FG = "#00FF00"
+FONT_UI = ("Segoe UI", 10)
+FONT_DATA = ("Consolas", 10, "bold")
+
 
 # ---------- Вспомогательные функции ----------
 
 def center_window(window, width, height):
-    """Центрирует окно заданного размера по центру экрана."""
     window.update_idletasks()
     screen_width = window.winfo_screenwidth()
     screen_height = window.winfo_screenheight()
@@ -22,8 +31,16 @@ def center_window(window, width, height):
     window.geometry(f"{width}x{height}+{x}+{y}")
 
 
+def position_near_parent(win, offset_x=40, offset_y=40):
+    """Смещает окно относительно главного, чтобы не перекрывать его."""
+    win.update_idletasks()
+    root.update_idletasks()
+    x = root.winfo_rootx() + offset_x
+    y = root.winfo_rooty() + offset_y
+    win.geometry(f"+{x}+{y}")
+
+
 def parse_api_time(s):
-    """Парсит 'Mon, 03 Nov 2025 00:02:31 +0000' в datetime (UTC)."""
     try:
         return datetime.strptime(s, "%a, %d %b %Y %H:%M:%S %z")
     except (TypeError, ValueError):
@@ -31,7 +48,6 @@ def parse_api_time(s):
 
 
 def to_msk(api_time_str):
-    """Переводит UTC-время из API в строку по МСК."""
     dt = parse_api_time(api_time_str)
     if not dt:
         return "—"
@@ -39,32 +55,72 @@ def to_msk(api_time_str):
 
 
 def format_rate(rate, target_code):
-    """Биржевая точность: 4 знака, для JPY — 2 знака."""
     if target_code == "JPY":
         return f"{rate:.2f}"
     return f"{rate:.4f}"
 
 
-def show_centered_info(title, message, raw_params=None):
-    """Чёрное окно с зелёным текстом, копированием и сохранением в файл."""
+# ---------- Второе окно: Metro + зелёные данные ----------
+
+def show_centered_info(title, segments, raw_params=None):
+    """segments — список кортежей (текст, is_data).
+    is_data=True → чёрный фон, ярко-зелёный текст (только для курсов/времени).
+    Остальное — обычный Metro-интерфейс."""
     win = Toplevel(root)
     win.title(title)
-    win.configure(bg="black")
+    win.configure(bg=BG)
     win.resizable(True, True)
 
-    text = Text(win, wrap="none", bg="black", fg="#00FF00",
-                insertbackground="#00FF00", font=("Consolas", 10),
-                padx=10, pady=10, relief="flat", borderwidth=0)
-    text.pack(fill="both", expand=True, padx=10, pady=(10, 0))
-    text.insert("1.0", message)
+    # Текстовое поле: светлый фон Metro, тёмный текст
+    text = Text(
+        win, wrap="none", height=14,
+        bg=BG, fg=FG,
+        insertbackground=FG,
+        font=FONT_UI,
+        padx=12, pady=10,
+        relief="flat", borderwidth=0,
+        highlightthickness=0,
+    )
+    text.pack(fill="x", expand=False, padx=16, pady=(16, 6))
+
+    # Тег «data» — чёрный фон, ярко-зелёный моноширинный
+    text.tag_configure(
+        "data",
+        background=DATA_BG,
+        foreground=DATA_FG,
+        font=FONT_DATA,
+    )
+    text.tag_configure("dim", foreground="#666666", font=("Segoe UI", 9))
+
+    # Вставляем сегменты
+    for seg, is_data in segments:
+        if is_data:
+            text.insert("end", seg, "data")
+        else:
+            text.insert("end", seg)
+
     text.config(state="disabled")   # только чтение, но выделять/копировать можно
 
-    btn_frame = Frame(win, bg="black")
-    btn_frame.pack(fill="x", pady=8, padx=10)
+    # Плоский текст для буфера/файла (без тегов)
+    plain = "".join(seg for seg, _ in segments)
+
+    # Фрейм кнопок — сразу под текстом, отступ ≤ 2 строк
+    btn_frame = Frame(win, bg=BG)
+    btn_frame.pack(fill="x", padx=16, pady=(0, 12))
+
+    def style_btn(b, primary=True):
+        if primary:
+            b.configure(bg=ACCENT, fg="white",
+                        activebackground=ACCENT_DARK, activeforeground="white")
+        else:
+            b.configure(bg="#E0E0E0", fg=FG,
+                        activebackground="#D0D0D0", activeforeground=FG)
+        b.configure(relief="flat", borderwidth=0, padx=16, pady=6,
+                    font=FONT_UI, cursor="hand2")
 
     def copy_to_clipboard():
         win.clipboard_clear()
-        win.clipboard_append(message)
+        win.clipboard_append(plain)
         mb.showinfo("Скопировано", "Текст скопирован в буфер обмена", parent=win)
 
     def save_to_file():
@@ -78,7 +134,7 @@ def show_centered_info(title, message, raw_params=None):
             return
         try:
             with open(path, "w", encoding="utf-8") as f:
-                f.write(message)
+                f.write(plain)
                 if raw_params:
                     f.write("\n\n--- Параметры запроса ---\n")
                     for k, v in raw_params.items():
@@ -87,20 +143,24 @@ def show_centered_info(title, message, raw_params=None):
         except OSError as e:
             mb.showerror("Ошибка", f"Не удалось сохранить файл: {e}", parent=win)
 
-    Button(btn_frame, text="Копировать", command=copy_to_clipboard,
-           bg="#111", fg="#00FF00", activebackground="#222",
-           activeforeground="#00FF00").pack(side="left", padx=(0, 8))
-    Button(btn_frame, text="Сохранить в файл", command=save_to_file,
-           bg="#111", fg="#00FF00", activebackground="#222",
-           activeforeground="#00FF00").pack(side="left")
-    Button(btn_frame, text="Закрыть", command=win.destroy,
-           bg="#111", fg="#00FF00", activebackground="#222",
-           activeforeground="#00FF00").pack(side="right")
+    b_copy = Button(btn_frame, text="Копировать", command=copy_to_clipboard)
+    style_btn(b_copy, primary=True)
+    b_copy.pack(side="left", padx=(0, 8))
 
+    b_save = Button(btn_frame, text="Сохранить в файл", command=save_to_file)
+    style_btn(b_save, primary=True)
+    b_save.pack(side="left")
+
+    b_close = Button(btn_frame, text="Закрыть", command=win.destroy)
+    style_btn(b_close, primary=False)
+    b_close.pack(side="right")
+
+    # Размер и смещение относительно главного окна (не перекрывает его)
     win.update_idletasks()
-    w = max(560, win.winfo_reqwidth())
-    h = max(360, win.winfo_reqheight())
-    center_window(win, w, h)
+    w = max(620, win.winfo_reqwidth())
+    h = max(420, win.winfo_reqheight())
+    win.geometry(f"{w}x{h}")
+    position_near_parent(win, offset_x=40, offset_y=40)
 
     win.transient(root)
     win.grab_set()
@@ -127,8 +187,6 @@ def update_base_label_2(event):
 # ---------- Работа с API ----------
 
 def get_rate(base_code, target_code):
-    """Запрашивает JSON с курсом base_code -> target_code.
-    Возвращает (rate, last_update_utc, next_update_utc)."""
     response = requests.get(
         f"https://open.er-api.com/v6/latest/{base_code}", timeout=10
     )
@@ -164,7 +222,6 @@ def exchange():
         now_local = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         now_msk = datetime.now(MSK).strftime("%d.%m.%Y %H:%M:%S МСК")
 
-        # Проверка актуальности: данные не старше 24 часов
         upd_dt = parse_api_time(upd_1)
         if upd_dt:
             age = datetime.now(timezone.utc) - upd_dt
@@ -176,21 +233,38 @@ def exchange():
         else:
             freshness = "Время обновления не указано API"
 
-        # Биржевой формат: BASE/QUOTE, Middle rate, точность по инструменту
-        result = (
-            f"Котировки (Base/Quote):\n"
-            f"{base_code_1}/{target_code}: {format_rate(rate_1, target_code)} (Middle)\n"
-            f"    {currencies[base_code_1]} → {currencies[target_code]}\n\n"
-            f"{base_code_2}/{target_code}: {format_rate(rate_2, target_code)} (Middle)\n"
-            f"    {currencies[base_code_2]} → {currencies[target_code]}\n\n"
-            f"Время получения (локальное): {now_local}\n"
-            f"Время получения (МСК):       {now_msk}\n"
-            f"Последнее обновление на сервере (UTC): {upd_1 or '—'}\n"
-            f"  → по московскому времени: {to_msk(upd_1)}\n"
-            f"{freshness}\n\n"
-            f"Источник курсов: open.er-api.com (ExchangeRate-API)\n"
-            f"API отдаёт средний курс (middle); Bid/Ask недоступны."
-        )
+        v1 = format_rate(rate_1, target_code)
+        v2 = format_rate(rate_2, target_code)
+        upd_msk = to_msk(upd_1)
+
+        # Сегменты: (текст, is_data). is_data=True → чёрный/зелёный.
+        # Курсы и время обновления — зелёные; подписи — обычные.
+        segments = [
+            ("Котировки (Base/Quote)\n\n", False),
+
+            (f"{base_code_1}/{target_code}: ", False),
+            (v1, True),
+            ("  (Middle)\n", False),
+            (f"    {currencies[base_code_1]} → {currencies[target_code]}\n\n", False),
+
+            (f"{base_code_2}/{target_code}: ", False),
+            (v2, True),
+            ("  (Middle)\n", False),
+            (f"    {currencies[base_code_2]} → {currencies[target_code]}\n\n", False),
+
+            ("Время получения (локальное): ", False),
+            (now_local, True),
+            ("\nВремя получения (МСК):       ", False),
+            (now_msk, True),
+            ("\nПоследнее обновление (UTC):  ", False),
+            (upd_1 or "—", True),
+            ("\n  → по московскому времени: ", False),
+            (upd_msk, True),
+            (f"\n{freshness}\n\n", False),
+
+            ("Источник курсов: open.er-api.com (ExchangeRate-API)\n", False),
+            ("API отдаёт средний курс (middle); Bid/Ask недоступны.", False),
+        ]
 
         raw_params = {
             "Дата и время запроса (локальное)": now_local,
@@ -198,10 +272,10 @@ def exchange():
             "Первая базовая валюта": f"{base_code_1} ({currencies[base_code_1]})",
             "Вторая базовая валюта": f"{base_code_2} ({currencies[base_code_2]})",
             "Целевая валюта": f"{target_code} ({currencies[target_code]})",
-            f"Курс {base_code_1}/{target_code}": format_rate(rate_1, target_code),
-            f"Курс {base_code_2}/{target_code}": format_rate(rate_2, target_code),
+            f"Курс {base_code_1}/{target_code}": v1,
+            f"Курс {base_code_2}/{target_code}": v2,
             "Последнее обновление (UTC)": upd_1 or "—",
-            "Последнее обновление (МСК)": to_msk(upd_1),
+            "Последнее обновление (МСК)": upd_msk,
             "Следующее обновление (UTC)": next_1 or "—",
             "Актуальность": freshness,
             "Источник": "open.er-api.com (ExchangeRate-API)",
@@ -209,7 +283,7 @@ def exchange():
             "URL запроса 2": f"https://open.er-api.com/v6/latest/{base_code_2}",
         }
 
-        show_centered_info("Курсы обмена", result, raw_params=raw_params)
+        show_centered_info("Курсы обмена", segments, raw_params=raw_params)
     except requests.RequestException as e:
         mb.showerror("Ошибка сети", f"Не удалось получить данные: {e}")
     except ValueError as e:
@@ -232,58 +306,65 @@ currencies = {
 }
 
 currency_symbols = {
-    "USD": "$",
-    "EUR": "€",
-    "GBP": "£",
-    "JPY": "¥",
-    "CNY": "¥",
-    "RUB": "₽",
-    "KZT": "₸",
-    "BYN": "Br",
-    "AUD": "A$",
-    "NZD": "NZ$",
+    "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "CNY": "¥",
+    "RUB": "₽", "KZT": "₸", "BYN": "Br", "AUD": "A$", "NZD": "NZ$",
 }
 
 
-# ---------- Интерфейс ----------
+# ---------- Интерфейс (Metro UI) ----------
 
 root = Tk()
-root.title("Конвертер валют (две базовые валюты)")
-center_window(root, 360, 380)   # окно уменьшено (~−15% по площади)
+root.title("Конвертер валют")
+root.configure(bg=BG)
+center_window(root, 360, 380)
 
-container = Frame(root)
-container.place(relx=0.5, rely=0.5, anchor="center")   # центрирование по высоте
+container = Frame(root, bg=BG)
+container.place(relx=0.5, rely=0.5, anchor="center")
+
+def metro_label(text, small=False):
+    return Label(container, text=text, bg=BG, fg=FG,
+                 font=("Segoe UI", 9) if small else FONT_UI)
+
+def metro_button(parent, text, command, primary=True):
+    b = Button(parent, text=text, command=command, relief="flat", borderwidth=0,
+               padx=16, pady=6, font=FONT_UI, cursor="hand2")
+    if primary:
+        b.configure(bg=ACCENT, fg="white",
+                    activebackground=ACCENT_DARK, activeforeground="white")
+    else:
+        b.configure(bg="#E0E0E0", fg=FG,
+                    activebackground="#D0D0D0", activeforeground=FG)
+    return b
 
 # Первая базовая валюта
-Label(container, text="Первая базовая валюта:").pack(pady=1)
+metro_label("Первая базовая валюта:").pack(pady=1)
 base_combobox = ttk.Combobox(container, values=list(currencies.keys()), state="readonly")
 base_combobox.pack()
 base_combobox.bind("<<ComboboxSelected>>", update_base_label)
 base_combobox.set("USD")
-base_label = Label(container, text=f"{currencies['USD']} {currency_symbols['USD']}")
+base_label = metro_label(f"{currencies['USD']} {currency_symbols['USD']}", small=True)
 base_label.pack()
 
 # Вторая базовая валюта
-Label(container, text="Вторая базовая валюта:").pack(pady=1)
+metro_label("Вторая базовая валюта:").pack(pady=1)
 base_combobox_2 = ttk.Combobox(container, values=list(currencies.keys()), state="readonly")
 base_combobox_2.pack()
 base_combobox_2.bind("<<ComboboxSelected>>", update_base_label_2)
 base_combobox_2.set("EUR")
-base_label_2 = Label(container, text=f"{currencies['EUR']} {currency_symbols['EUR']}")
+base_label_2 = metro_label(f"{currencies['EUR']} {currency_symbols['EUR']}", small=True)
 base_label_2.pack()
 
 # Целевая валюта
-Label(container, text="Целевая валюта:").pack(pady=1)
+metro_label("Целевая валюта:").pack(pady=1)
 target_combobox = ttk.Combobox(container, values=list(currencies.keys()), state="readonly")
 target_combobox.pack()
 target_combobox.bind("<<ComboboxSelected>>", update_currency_label)
 target_combobox.set("RUB")
-target_label = Label(container, text=f"{currencies['RUB']} {currency_symbols['RUB']}")
+target_label = metro_label(f"{currencies['RUB']} {currency_symbols['RUB']}", small=True)
 target_label.pack()
 
-Button(container, text="Получить курсы", command=exchange).pack(pady=8)
+metro_button(container, "Получить курсы", exchange, primary=True).pack(pady=8)
 
-# Источник курсов внизу окна
-Label(container, text="Источник: open.er-api.com", font=("Arial", 8), fg="gray").pack(pady=(0, 4))
+metro_label("Источник: open.er-api.com", small=True).pack(pady=(0, 4))
 
 root.mainloop()
