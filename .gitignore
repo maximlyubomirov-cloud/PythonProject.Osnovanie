@@ -22,3 +22,8 @@ text*.txt
 test.jpg
 01-Strah.mp3
 GraphEditor.spec
+.venv/
+__pycache__/
+*.db
+main
+License
