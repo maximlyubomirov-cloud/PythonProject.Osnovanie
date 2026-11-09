@@ -1,0 +1,16 @@
+api.github.com
+api.githubcopilot.com
+api.individual.githubcopilot.com
+breeze.aimon.applicationinsights.io
+copilot-proxy.githubusercontent.com
+copilot-telemetry-service.githubusercontent.com
+copilot-telemetry.githubusercontent.com
+copilot-workspace.githubnext.com
+copilot.github.com
+copilotprodattachments.blob.core.windows.net
+default.exp-tas.com
+github.com
+githubcopilot.com
+origin-tracker.githubusercontent.com
+proxy.individual.githubusercontent.com
+telemetry.individual.githubcopilot.com
