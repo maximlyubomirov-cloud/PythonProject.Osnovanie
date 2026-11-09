@@ -4,19 +4,19 @@ import requests
 from datetime import datetime, timezone
 
 # ==========================================
-# ЦВЕТА ПЕРВОГО ОКНА (светлая, фиксированная)
+# ТЕМА ДЛЯ ПЕРВОГО ОКНА (Светлая, чуть темнее)
 # ==========================================
 MAIN = {
-    "bg": "#F3F3F3",
+    "bg": "#E0E0E0",       # Чуть темнее, чем было (было F3F3F3)
     "text": "#212121",
-    "subtext": "#666666",
+    "subtext": "#555555",
     "btn": "#0078D7",
     "btn_fg": "white",
-    "card": "#FFFFFF",
+    "card": "#EBEBEB",
 }
 
 # ==========================================
-# ЦВЕТА ВТОРОГО ОКНА (тёмная, фиксированная)
+# ТЕМА ДЛЯ ВТОРОГО ОКНА (Тёмная, фиксированная)
 # ==========================================
 CONVERTER_DARK = {
     "bg": "#1E1E1E",
@@ -35,7 +35,7 @@ CONVERTER_DARK = {
 
 
 # ==========================================
-# ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ (только первое окно)
+# ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ
 # ==========================================
 class ToolTip:
     def __init__(self, widget, text_func):
@@ -95,8 +95,6 @@ class RatesWindow:
         try:
             self.icon_image = tk.PhotoImage(file="icon.png")
             self.root.iconphoto(True, self.icon_image)
-            # Для заголовка над галками — уменьшаем копию картинки,
-            # чтобы не занимала пол-окна (макс. высота ~64 px).
             self.header_image = self._make_header_image("icon.png", max_height=64)
         except Exception as e:
             print(f"Не удалось загрузить иконку: {e}")
@@ -132,35 +130,27 @@ class RatesWindow:
 
     @staticmethod
     def _make_header_image(path, max_height=64):
-        """Возвращает PhotoImage с уменьшенной картинкой (или None)."""
         try:
             img = tk.PhotoImage(file=path)
         except Exception:
             return None
-
         h = img.height()
         if h <= max_height:
             return img
-
-        # Кратно уменьшаем (PhotoImage умеет только целочисленный subsample)
         factor = max(1, (h + max_height - 1) // max_height)
         return img.subsample(factor, factor)
 
-    # ---------------- UI ----------------
     def setup_ui(self):
-        # Вместо надписи "CryptoBeaver" — картинка icon.png
         if self.header_image is not None:
             self.header_label = tk.Label(self.root, image=self.header_image,
                                          bg=MAIN["bg"], bd=0)
-            self.header_label.image = self.header_image  # защита от GC
+            self.header_label.image = self.header_image
         else:
-            # Fallback, если icon.png не найден
             self.header_label = tk.Label(self.root, text="CryptoBeaver",
                                          font=("Segoe UI", 16, "bold"),
                                          bg=MAIN["bg"], fg=MAIN["text"])
         self.header_label.pack(pady=10)
 
-        # --- Выбор криптовалют ---
         self.selection_frame = tk.LabelFrame(self.root, text="Выберите криптовалюты:",
                                              bg=MAIN["bg"], fg=MAIN["text"],
                                              font=("Segoe UI", 10))
@@ -180,7 +170,6 @@ class RatesWindow:
             ToolTip(chk, lambda text=tip_text: text)
             chk.grid(row=i // 2, column=i % 2, sticky="w", padx=10, pady=2)
 
-        # --- Кнопки ---
         self.btn_frame = tk.Frame(self.root, bg=MAIN["bg"])
         self.btn_frame.pack(pady=10)
 
@@ -195,7 +184,6 @@ class RatesWindow:
                                             padx=15, pady=5, relief="flat", cursor="hand2", state="disabled")
         self.btn_open_converter.pack(side="left", padx=5)
 
-        # --- Treeview (тёмный терминал) ---
         style = ttk.Style()
         style.theme_use("clam")
         style.configure("Treeview.Heading",
@@ -230,7 +218,6 @@ class RatesWindow:
                                      bg=MAIN["bg"], fg=MAIN["subtext"])
         self.source_label.pack(pady=(0, 10))
 
-    # ---------------- Логика ----------------
     def get_rates(self):
         for row in self.tree.get_children():
             self.tree.delete(row)
@@ -282,7 +269,7 @@ class RatesWindow:
 
 
 # ==========================================
-# КЛАСС 2: КОНВЕРТЕР (всегда тёмная тема)
+# КЛАСС 2: КОНВЕРТЕР (ТЁМНАЯ ТЕМА)
 # ==========================================
 class ConverterWindow:
     def __init__(self, parent, coins_data, selected_ids):
@@ -385,7 +372,6 @@ class ConverterWindow:
                     pass
             return False
 
-    # ---------------- UI ----------------
     def setup_ui(self):
         self.title_label = tk.Label(self.top, text="Конвертация",
                                     font=("Segoe UI", 14, "bold"),
@@ -547,7 +533,6 @@ class ConverterWindow:
         self.to_combo.set(from_val)
         self.calculate()
 
-    # ---------------- Тема (всегда тёмная) ----------------
     def apply_theme(self):
         t = self.theme
 
