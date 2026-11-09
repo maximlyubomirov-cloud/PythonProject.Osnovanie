@@ -117,10 +117,19 @@ class RatesWindow:
         if self.header_image:
             lbl = tk.Label(self.root, image=self.header_image, bg=t["bg"])
             lbl.image = self.header_image
-            lbl.pack(pady=10)
+            lbl.pack(pady=(10, 0))
         else:
             tk.Label(self.root, text="CryptoBeaver", font=("Segoe UI", 16, "bold"),
-                     bg=t["bg"], fg=t["text"]).pack(pady=10)
+                     bg=t["bg"], fg=t["text"]).pack(pady=(10, 0))
+
+        # --- МЕМНАЯ НАДПИСЬ В СТИЛЕ PYTHON ---
+        mem_frame = tk.Frame(self.root, bg=t["bg"])
+        mem_frame.pack(pady=(0, 10))
+        tk.Label(mem_frame, text=">>> CryptoBeaver is good!",
+                 font=("Consolas", 10, "bold"), bg=t["bg"], fg="#4CAF50").pack()
+        tk.Label(mem_frame, text="# return True",
+                 font=("Consolas", 8), bg=t["bg"], fg="#888888").pack()
+        # --------------------------------------
 
         frame = tk.LabelFrame(self.root, text="Выберите криптовалюты:", bg=t["bg"], fg=t["text"], font=("Segoe UI", 10))
         frame.pack(fill="x", padx=20, pady=5)
@@ -241,37 +250,18 @@ class ConverterWindow:
     def setup_ui(self):
         t = THEME_DARK
 
-        # --- НАСТРОЙКА СТИЛЕЙ ДЛЯ COMBOBOX ---
         style = ttk.Style()
         style.theme_use("clam")
+        style.configure("TCombobox", fieldbackground=t["combo_bg"], background=t["combo_bg"],
+                        foreground=t["combo_fg"], arrowcolor=t["combo_fg"],
+                        selectbackground=t["combo_select_bg"], selectforeground=t["combo_select_fg"])
+        style.map("TCombobox", fieldbackground=[("readonly", t["combo_bg"])],
+                  foreground=[("readonly", t["combo_fg"])], background=[("readonly", t["combo_bg"])])
 
-        # Настройка поля ввода (когда список закрыт)
-        style.configure(
-            "TCombobox",
-            fieldbackground=t["combo_bg"],  # Темно-серый фон
-            background=t["combo_bg"],  # Фон кнопки со стрелочкой
-            foreground=t["combo_fg"],  # Белый текст
-            arrowcolor=t["combo_fg"],  # Белая стрелочка
-            selectbackground=t["combo_select_bg"],
-            selectforeground=t["combo_select_fg"]
-        )
-
-        # Принудительно фиксируем цвета в состоянии readonly
-        style.map(
-            "TCombobox",
-            fieldbackground=[("readonly", t["combo_bg"])],
-            foreground=[("readonly", t["combo_fg"])],
-            background=[("readonly", t["combo_bg"])],
-            selectbackground=[("readonly", t["combo_select_bg"])],
-            selectforeground=[("readonly", t["combo_select_fg"])]
-        )
-
-        # Настройка раскрывающегося списка
         self.top.option_add("*TCombobox*Listbox.background", t["combo_bg"])
         self.top.option_add("*TCombobox*Listbox.foreground", t["combo_fg"])
         self.top.option_add("*TCombobox*Listbox.selectBackground", t["combo_select_bg"])
         self.top.option_add("*TCombobox*Listbox.selectForeground", t["combo_select_fg"])
-        # ---------------------------------------
 
         tk.Label(self.top, text="Конвертация", font=("Segoe UI", 14, "bold"), bg=t["bg"], fg=t["text"]).pack(pady=10)
 
