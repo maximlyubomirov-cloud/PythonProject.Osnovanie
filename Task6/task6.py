@@ -4,8 +4,45 @@ import requests
 from datetime import datetime, timezone
 
 
+# ==========================================
+# КЛАСС ДЛЯ ВСПЛЫВАЮЩИХ ПОДСКАЗОК
+# ==========================================
+class ToolTip:
+    def __init__(self, widget, text_func):
+        self.widget = widget
+        self.text_func = text_func
+        self.tip_window = None
+
+        widget.bind("<Enter>", self.show_tip)
+        widget.bind("<Leave>", self.hide_tip)
+
+    def show_tip(self, event=None):
+        text = self.text_func()
+        if not text or self.tip_window:
+            return
+
+        # Координаты для всплывающего окна (чуть ниже курсора)
+        x = self.widget.winfo_rootx() + 15
+        y = self.widget.winfo_rooty() + 25
+
+        self.tip_window = tk.Toplevel(self.widget)
+        self.tip_window.wm_overrideredirect(True)  # Убираем рамки
+        self.tip_window.wm_geometry(f"+{x}+{y}")
+        self.tip_window.attributes("-topmost", True)  # Поверх всех
+
+        label = tk.Label(self.tip_window, text=text, justify=tk.LEFT,
+                         background="#FFFFE0", foreground="#000000",
+                         relief=tk.SOLID, borderwidth=1,
+                         font=("Segoe UI", 9), padx=4, pady=2)
+        label.pack()
+
+    def hide_tip(self, event=None):
+        if self.tip_window:
+            self.tip_window.destroy()
+            self.tip_window = None
+
+
 def center_window(window, width, height):
-    """Размещает окно по центру экрана."""
     window.update_idletasks()
     screen_width = window.winfo_screenwidth()
     screen_height = window.winfo_screenheight()
@@ -15,20 +52,15 @@ def center_window(window, width, height):
 
 
 def position_next_to_parent(window, parent, offset_x=15, offset_y=0):
-    """Размещает окно справа от родительского окна."""
     window.update_idletasks()
     parent.update_idletasks()
-
     parent_x = parent.winfo_rootx()
     parent_y = parent.winfo_rooty()
     parent_w = parent.winfo_width()
-
     window_w = window.winfo_reqwidth()
     window_h = window.winfo_reqheight()
-
     new_x = parent_x + parent_w + offset_x
     new_y = parent_y + offset_y
-
     window.geometry(f"{window_w}x{window_h}+{new_x}+{new_y}")
 
 
@@ -45,7 +77,6 @@ class RatesWindow:
         self.root.resizable(False, False)
         self.root.geometry("520x1")
 
-        # Добавляем иконки в названия для первого окна
         self.coins = {
             "bitcoin": "₿ Bitcoin (BTC)",
             "ethereum": "Ξ Ethereum (ETH)",
@@ -56,6 +87,19 @@ class RatesWindow:
             "dogecoin": "Ð Dogecoin (DOGE)",
             "binancecoin": "🟡 BNB (BNB)"
         }
+
+        # Словарь с описаниями для первого окна
+        self.coins_tooltips = {
+            "bitcoin": "Bitcoin (BTC) — первая криптовалюта, 'цифровое золото'.",
+            "ethereum": "Ethereum (ETH) — платформа для смарт-контрактов.",
+            "solana": "Solana (SOL) — быстрый блокчейн для DeFi и NFT.",
+            "the-open-network": "Toncoin (TON) — валюта блокчейна Telegram.",
+            "ripple": "XRP — криптовалюта для мгновенных переводов.",
+            "cardano": "Cardano (ADA) — научный блокчейн-проект.",
+            "dogecoin": "Dogecoin (DOGE) — мем-монета, ставшая популярной.",
+            "binancecoin": "BNB — нативная монета биржи Binance."
+        }
+
         self.selected_coins_data = {}
         self.setup_ui()
 
@@ -75,8 +119,14 @@ class RatesWindow:
         for i, (coin_id, coin_name) in enumerate(self.coins.items()):
             var = tk.BooleanVar(value=True)
             self.coin_vars[coin_id] = var
+
             chk = tk.Checkbutton(selection_frame, text=coin_name, variable=var,
                                  bg="#F3F3F3", font=("Segoe UI", 9))
+
+            # ДОБАВЛЯЕМ ПОДСКАЗКУ К КАЖДОМУ ЧЕКБОКСУ
+            tip_text = self.coins_tooltips.get(coin_id, "Описание отсутствует")
+            ToolTip(chk, lambda text=tip_text: text)
+
             row = i // 2
             col = i % 2
             chk.grid(row=row, column=col, sticky="w", padx=10, pady=2)
@@ -194,7 +244,21 @@ class ConverterWindow:
         self.top.configure(bg="#F3F3F3")
         self.top.resizable(False, False)
 
-        # Добавляем иконки для конвертера
+        self.full_names = {
+            "bitcoin": "Bitcoin — первая и самая популярная криптовалюта в мире.",
+            "ethereum": "Ethereum — платформа для смарт-контрактов и децентрализованных приложений.",
+            "tether": "Tether (USDT) — стейблкоин, привязанный к доллару США (1 USDT ≈ 1 USD).",
+            "solana": "Solana — высокопроизводительный блокчейн для DeFi и NFT.",
+            "binancecoin": "BNB — нативная монета экосистемы Binance.",
+            "the-open-network": "Toncoin — криптовалюта блокчейна TON (The Open Network).",
+            "ripple": "XRP — криптовалюта для быстрых международных платежей.",
+            "cardano": "Cardano — блокчейн-платформа с научным подходом к разработке.",
+            "dogecoin": "Dogecoin — мем-криптовалюта, ставшая популярной благодаря сообществу.",
+            "usd": "Доллар США (USD) — официальная валюта Соединённых Штатов.",
+            "eur": "Евро (EUR) — официальная валюта Евросоюза.",
+            "rub": "Российский рубль (RUB) — официальная валюта Российской Федерации."
+        }
+
         all_coins = {
             "bitcoin": ("BTC", "₿ Bitcoin"),
             "ethereum": ("ETH", "Ξ Ethereum"),
@@ -327,7 +391,6 @@ class ConverterWindow:
         row = tk.Frame(frame, bg="#FFFFFF")
         row.pack(fill="x", padx=12, pady=(0, 15))
 
-        # Теперь в выпадающем списке будут иконки
         coin_values = [f"{v[0]} - {v[1]}" for k, v in self.coins.items()]
         combo = ttk.Combobox(row, values=coin_values, width=16, state="readonly", font=("Segoe UI", 10))
         combo.pack(side="left")
@@ -343,6 +406,16 @@ class ConverterWindow:
         else:
             combo.set(coin_values[0])
 
+        def get_tooltip_text():
+            current_val = combo.get()
+            ticker = current_val.split(" - ")[0]
+            coin_id = self.get_id_by_ticker(ticker)
+            if coin_id and coin_id in self.full_names:
+                return self.full_names[coin_id]
+            return "Описание отсутствует"
+
+        ToolTip(combo, get_tooltip_text)
+
         entry = tk.Entry(
             row,
             font=("Consolas", 16, "bold"),
@@ -356,7 +429,6 @@ class ConverterWindow:
             validate="key",
             validatecommand=(self.top.register(self.validate_number), "%P")
         )
-        # Изменен отступ слева с 20 на 10 пикселей
         entry.pack(side="right", fill="x", expand=True, padx=(10, 0))
 
         if is_from:
