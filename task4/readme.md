@@ -89,8 +89,3 @@
 ```bash
 pip install Pillow
 pip install openexr-numpy
-```
-
-## Скриншот программы
-
-![Скриншот графического редактора](zadanie4.png)
