@@ -32,8 +32,8 @@ GUI-приложение на Python/Tkinter для получения акту�
 через API **open.er-api.com** (ExchangeRate-API). Поддерживает **две базовые валюты**
 одновременно и выводит курсы в биржевом формате `BASE/QUOTE`.
 
-![Главное окно](docs/screenshot-main.png)
-![Окно результатов](docs/screenshot-result.png)
+![Главное окно](task5/docs/screenshot-main.png)
+![Окно результатов](task5/docs/screenshot-result.png)
 
 ## Возможности
 
