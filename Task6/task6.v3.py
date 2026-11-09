@@ -1,95 +1,91 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import requests
-from datetime import datetime, timezone
+from datetime import datetime
 
 # ==========================================
-# ТЕМА ДЛЯ ПЕРВОГО ОКНА (Светлая, чуть темнее)
+# 1. КОНСТАНТЫ И СЛОВАРИ
 # ==========================================
-MAIN = {
-    "bg": "#E0E0E0",       # Чуть темнее, чем было (было F3F3F3)
-    "text": "#212121",
-    "subtext": "#555555",
-    "btn": "#0078D7",
-    "btn_fg": "white",
-    "card": "#EBEBEB",
+FIAT_CURRENCIES = ["usd", "eur", "rub"]
+
+ALL_COINS = {
+    "bitcoin": {"ticker": "BTC", "name": "Bitcoin", "icon": "₿", "type": "crypto", "desc": "Первая криптовалюта"},
+    "ethereum": {"ticker": "ETH", "name": "Ethereum", "icon": "Ξ", "type": "crypto", "desc": "Смарт-контракты"},
+    "tether": {"ticker": "USDT", "name": "Tether", "icon": "💵", "type": "crypto", "desc": "Стейблкоин к USD"},
+    "solana": {"ticker": "SOL", "name": "Solana", "icon": "◎", "type": "crypto", "desc": "Быстрый блокчейн"},
+    "binancecoin": {"ticker": "BNB", "name": "BNB", "icon": "🟡", "type": "crypto", "desc": "Монета Binance"},
+    "the-open-network": {"ticker": "TON", "name": "Toncoin", "icon": "💎", "type": "crypto",
+                         "desc": "Блокчейн Telegram"},
+    "ripple": {"ticker": "XRP", "name": "XRP", "icon": "✕", "type": "crypto", "desc": "Переводы"},
+    "cardano": {"ticker": "ADA", "name": "Cardano", "icon": "₳", "type": "crypto", "desc": "Научный подход"},
+    "dogecoin": {"ticker": "DOGE", "name": "Dogecoin", "icon": "Ð", "type": "crypto", "desc": "Мем-монета"},
+    "usd": {"ticker": "USD", "name": "Доллар", "icon": "💲", "type": "fiat", "desc": "США"},
+    "eur": {"ticker": "EUR", "name": "Евро", "icon": "💶", "type": "fiat", "desc": "Евросоюз"},
+    "rub": {"ticker": "RUB", "name": "Рубль", "icon": "₽", "type": "fiat", "desc": "Россия"},
 }
 
-# ==========================================
-# ТЕМА ДЛЯ ВТОРОГО ОКНА (Тёмная, фиксированная)
-# ==========================================
-CONVERTER_DARK = {
-    "bg": "#1E1E1E",
-    "card": "#2D2D2D",
-    "text": "#E0E0E0",
-    "subtext": "#A0A0A0",
-    "entry_bg": "#000000",
-    "entry_fg": "#00FF00",
-    "btn": "#005A9E",
-    "btn_fg": "white",
-    "combo_bg": "#3A3A3A",
-    "combo_fg": "#FFFFFF",
-    "combo_select_bg": "#005A9E",
-    "combo_select_fg": "#FFFFFF",
-}
+THEME_LIGHT = {"bg": "#E0E0E0", "card": "#EBEBEB", "text": "#212121", "subtext": "#555555",
+               "btn": "#0078D7", "btn_fg": "white", "entry_bg": "#000000", "entry_fg": "#00FF00",
+               "tree_bg": "#000000", "tree_fg": "#00FF00"}
+
+THEME_DARK = {"bg": "#1E1E1E", "card": "#2D2D2D", "text": "#E0E0E0", "subtext": "#A0A0A0",
+              "btn": "#005A9E", "btn_fg": "white", "entry_bg": "#000000", "entry_fg": "#00FF00",
+              "combo_bg": "#3A3A3A", "combo_fg": "#FFFFFF", "combo_select_bg": "#005A9E", "combo_select_fg": "#FFFFFF"}
 
 
 # ==========================================
-# ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ
+# 2. УТИЛИТЫ И API
 # ==========================================
+class CryptoAPI:
+    BASE_URL = "https://api.coingecko.com/api/v3/simple/price"
+
+    @staticmethod
+    def get_rates(coin_ids, currencies="usd", change=False):
+        if not coin_ids: return None
+        url = f"{CryptoAPI.BASE_URL}?ids={','.join(coin_ids)}&vs_currencies={currencies}"
+        if change: url += "&include_24hr_change=true"
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"API Error: {e}")
+            return None
+
+
 class ToolTip:
     def __init__(self, widget, text_func):
-        self.widget = widget
-        self.text_func = text_func
-        self.tip_window = None
+        self.widget, self.text_func, self.tip_window = widget, text_func, None
         widget.bind("<Enter>", self.show_tip)
         widget.bind("<Leave>", self.hide_tip)
 
     def show_tip(self, event=None):
         text = self.text_func()
-        if not text or self.tip_window:
-            return
-        x = self.widget.winfo_rootx() + 15
-        y = self.widget.winfo_rooty() + 25
+        if not text or self.tip_window: return
         self.tip_window = tk.Toplevel(self.widget)
         self.tip_window.wm_overrideredirect(True)
-        self.tip_window.wm_geometry(f"+{x}+{y}")
+        self.tip_window.wm_geometry(f"+{self.widget.winfo_rootx() + 15}+{self.widget.winfo_rooty() + 25}")
         self.tip_window.attributes("-topmost", True)
-        tk.Label(self.tip_window, text=text, justify=tk.LEFT,
-                 background="#FFFFE0", foreground="#000000",
-                 relief=tk.SOLID, borderwidth=1,
-                 font=("Segoe UI", 9), padx=4, pady=2).pack()
+        tk.Label(self.tip_window, text=text, background="#FFFFE0", relief=tk.SOLID, borderwidth=1).pack()
 
     def hide_tip(self, event=None):
-        if self.tip_window:
-            self.tip_window.destroy()
-            self.tip_window = None
-
-
-def position_next_to_parent(window, parent, offset_x=15, offset_y=0):
-    window.update_idletasks()
-    parent.update_idletasks()
-    parent_x = parent.winfo_rootx()
-    parent_y = parent.winfo_rooty()
-    parent_w = parent.winfo_width()
-    window_w = window.winfo_reqwidth()
-    window_h = window.winfo_reqheight()
-    window.geometry(f"{window_w}x{window_h}+{parent_x + parent_w + offset_x}+{parent_y + offset_y}")
+        if self.tip_window: self.tip_window.destroy(); self.tip_window = None
 
 
 # ==========================================
-# КЛАСС 1: ОКНО С КУРСАМИ
+# 3. ГЛАВНОЕ ОКНО
 # ==========================================
 class RatesWindow:
     def __init__(self, root):
         self.root = root
         self.root.withdraw()
         self.root.title("CryptoBeaver")
-        self.root.configure(bg=MAIN["bg"])
+        self.root.configure(bg=THEME_LIGHT["bg"])
         self.root.resizable(False, False)
         self.root.geometry("520x1")
 
-        # --- ИКОНКА ОКНА + ИКОНКА-ЗАГОЛОВОК ---
+        self.converter = None
+
         self.icon_image = None
         self.header_image = None
         try:
@@ -98,38 +94,13 @@ class RatesWindow:
             self.header_image = self._make_header_image("icon.png", max_height=64)
         except Exception as e:
             print(f"Не удалось загрузить иконку: {e}")
-        # -------------------------------------
-
-        self.coins = {
-            "bitcoin": "₿ Bitcoin (BTC)",
-            "ethereum": "Ξ Ethereum (ETH)",
-            "solana": "◎ Solana (SOL)",
-            "the-open-network": "💎 Toncoin (TON)",
-            "ripple": "✕ XRP (XRP)",
-            "cardano": "₳ Cardano (ADA)",
-            "dogecoin": "Ð Dogecoin (DOGE)",
-            "binancecoin": "🟡 BNB (BNB)"
-        }
-        self.coins_tooltips = {
-            "bitcoin": "Bitcoin (BTC) — первая криптовалюта, 'цифровое золото'.",
-            "ethereum": "Ethereum (ETH) — платформа для смарт-контрактов.",
-            "solana": "Solana (SOL) — быстрый блокчейн для DeFi и NFT.",
-            "the-open-network": "Toncoin (TON) — валюта блокчейна Telegram.",
-            "ripple": "XRP — криптовалюта для мгновенных переводов.",
-            "cardano": "Cardano (ADA) — научный блокчейн-проект.",
-            "dogecoin": "Dogecoin (DOGE) — мем-монета, ставшая популярной.",
-            "binancecoin": "BNB — нативная монета биржи Binance."
-        }
-
-        self.selected_coins_data = {}
-        self.converter = None
 
         self.setup_ui()
         self.root.deiconify()
         self.root.geometry("")
 
     @staticmethod
-    def _make_header_image(path, max_height=64):
+    def _make_header_image(path, max_height):
         try:
             img = tk.PhotoImage(file=path)
         except Exception:
@@ -141,65 +112,50 @@ class RatesWindow:
         return img.subsample(factor, factor)
 
     def setup_ui(self):
-        if self.header_image is not None:
-            self.header_label = tk.Label(self.root, image=self.header_image,
-                                         bg=MAIN["bg"], bd=0)
-            self.header_label.image = self.header_image
-        else:
-            self.header_label = tk.Label(self.root, text="CryptoBeaver",
-                                         font=("Segoe UI", 16, "bold"),
-                                         bg=MAIN["bg"], fg=MAIN["text"])
-        self.header_label.pack(pady=10)
+        t = THEME_LIGHT
 
-        self.selection_frame = tk.LabelFrame(self.root, text="Выберите криптовалюты:",
-                                             bg=MAIN["bg"], fg=MAIN["text"],
-                                             font=("Segoe UI", 10))
-        self.selection_frame.pack(fill="x", padx=20, pady=5)
+        if self.header_image:
+            lbl = tk.Label(self.root, image=self.header_image, bg=t["bg"])
+            lbl.image = self.header_image
+            lbl.pack(pady=10)
+        else:
+            tk.Label(self.root, text="CryptoBeaver", font=("Segoe UI", 16, "bold"),
+                     bg=t["bg"], fg=t["text"]).pack(pady=10)
+
+        frame = tk.LabelFrame(self.root, text="Выберите криптовалюты:", bg=t["bg"], fg=t["text"], font=("Segoe UI", 10))
+        frame.pack(fill="x", padx=20, pady=5)
 
         self.coin_vars = {}
-        for i, (coin_id, coin_name) in enumerate(self.coins.items()):
-            var = tk.BooleanVar(value=True)
-            self.coin_vars[coin_id] = var
-            chk = tk.Checkbutton(self.selection_frame, text=coin_name, variable=var,
-                                 bg=MAIN["bg"], fg=MAIN["text"],
-                                 activebackground=MAIN["bg"],
-                                 activeforeground=MAIN["text"],
-                                 selectcolor=MAIN["card"],
-                                 font=("Segoe UI", 9))
-            tip_text = self.coins_tooltips.get(coin_id, "Описание отсутствует")
-            ToolTip(chk, lambda text=tip_text: text)
+        crypto_list = [k for k, v in ALL_COINS.items() if v["type"] == "crypto"]
+        for i, coin_id in enumerate(crypto_list):
+            self.coin_vars[coin_id] = tk.BooleanVar(value=True)
+            c_info = ALL_COINS[coin_id]
+            chk = tk.Checkbutton(frame, text=f"{c_info['icon']} {c_info['name']} ({c_info['ticker']})",
+                                 variable=self.coin_vars[coin_id], bg=t["bg"], fg=t["text"],
+                                 selectcolor=t["card"], font=("Segoe UI", 9))
+            ToolTip(chk, lambda c=c_info: c["desc"])
             chk.grid(row=i // 2, column=i % 2, sticky="w", padx=10, pady=2)
 
-        self.btn_frame = tk.Frame(self.root, bg=MAIN["bg"])
-        self.btn_frame.pack(pady=10)
+        btn_frame = tk.Frame(self.root, bg=t["bg"])
+        btn_frame.pack(pady=10)
 
-        self.btn_get = tk.Button(self.btn_frame, text="Запросить курсы", command=self.get_rates,
-                                 bg=MAIN["btn"], fg=MAIN["btn_fg"],
-                                 font=("Segoe UI", 10, "bold"),
+        self.btn_get = tk.Button(btn_frame, text="Запросить курсы", command=self.get_rates,
+                                 bg=t["btn"], fg=t["btn_fg"], font=("Segoe UI", 10, "bold"),
                                  padx=15, pady=5, relief="flat", cursor="hand2")
         self.btn_get.pack(side="left", padx=5)
 
-        self.btn_open_converter = tk.Button(self.btn_frame, text="Конвертировать", command=self.open_converter,
-                                            bg="#4CAF50", fg="white", font=("Segoe UI", 10, "bold"),
-                                            padx=15, pady=5, relief="flat", cursor="hand2", state="disabled")
-        self.btn_open_converter.pack(side="left", padx=5)
+        self.btn_convert = tk.Button(btn_frame, text="Конвертировать", command=self.open_converter,
+                                     bg="#4CAF50", fg="white", font=("Segoe UI", 10, "bold"),
+                                     padx=15, pady=5, relief="flat", cursor="hand2", state="disabled")
+        self.btn_convert.pack(side="left", padx=5)
 
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Treeview.Heading",
-                        background="#000000", foreground="#00FF00",
-                        font=("Consolas", 10, "bold"), relief="flat")
-        style.map("Treeview.Heading", background=[('active', '#003300')])
-        style.configure("Treeview",
-                        background="#000000", foreground="#00FF00",
-                        fieldbackground="#000000",
-                        font=("Consolas", 10, "bold"), rowheight=25)
-        style.map("Treeview",
-                  background=[('selected', '#004400')],
-                  foreground=[('selected', '#00FF00')])
+        style.configure("Treeview.Heading", background="#000000", foreground="#00FF00", font=("Consolas", 10, "bold"))
+        style.configure("Treeview", background=t["tree_bg"], foreground=t["tree_fg"], fieldbackground=t["tree_bg"],
+                        rowheight=25)
 
-        columns = ("coin", "price", "change")
-        self.tree = ttk.Treeview(self.root, columns=columns, show="headings", height=8)
+        self.tree = ttk.Treeview(self.root, columns=("coin", "price", "change"), show="headings", height=8)
         self.tree.heading("coin", text="Криптовалюта")
         self.tree.heading("price", text="Цена (USD)")
         self.tree.heading("change", text="Изм. за 24ч (%)")
@@ -208,401 +164,230 @@ class RatesWindow:
         self.tree.column("change", width=100, anchor="e")
         self.tree.pack(fill="both", expand=True, padx=20, pady=5)
 
-        self.time_label = tk.Label(self.root, text="Ожидание запроса...",
-                                   font=("Segoe UI", 8),
-                                   bg=MAIN["bg"], fg=MAIN["subtext"])
+        self.time_label = tk.Label(self.root, text="Ожидание запроса...", font=("Segoe UI", 8), bg=t["bg"],
+                                   fg=t["subtext"])
         self.time_label.pack(pady=5)
 
-        self.source_label = tk.Label(self.root, text="Источник данных: CoinGecko API (coingecko.com)",
-                                     font=("Segoe UI", 7),
-                                     bg=MAIN["bg"], fg=MAIN["subtext"])
-        self.source_label.pack(pady=(0, 10))
-
     def get_rates(self):
-        for row in self.tree.get_children():
-            self.tree.delete(row)
-        self.selected_coins_data.clear()
-
-        selected_coins = [coin_id for coin_id, var in self.coin_vars.items() if var.get()]
-        if not selected_coins:
-            messagebox.showwarning("Внимание", "Выберите хотя бы одну валюту!")
-            return
-
-        ids_str = ",".join(selected_coins)
-        url = (f"https://api.coingecko.com/api/v3/simple/price?"
-               f"ids={ids_str}&vs_currencies=usd&include_24hr_change=true")
-
         self.btn_get.config(state="disabled", text="Загрузка...")
         self.root.update()
 
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-
-            for coin_id in selected_coins:
-                if coin_id in data:
-                    name = self.coins[coin_id]
-                    price = data[coin_id].get("usd", 0)
-                    change = data[coin_id].get("usd_24h_change", 0)
-                    price_str = f"${price:,.2f}" if price >= 1 else f"${price:,.4f}"
-                    change_str = f"{change:.2f}%" if change is not None else "—"
-                    self.tree.insert("", "end", values=(name, price_str, change_str))
-                    self.selected_coins_data[coin_id] = {
-                        "name": name, "price": price, "change": change_str
-                    }
-
-            now = datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M:%S")
-            self.time_label.config(text=f"Последнее обновление: {now} (МСК)")
-            self.btn_open_converter.config(state="normal")
-            self.root.geometry("")
-        except Exception as e:
-            messagebox.showerror("Ошибка", f"Не удалось получить данные:\n{e}")
-        finally:
+        selected = [k for k, v in self.coin_vars.items() if v.get()]
+        if not selected:
+            messagebox.showwarning("Внимание", "Выберите валюту!")
             self.btn_get.config(state="normal", text="Запросить курсы")
+            return
+
+        self.tree.delete(*self.tree.get_children())
+        data = CryptoAPI.get_rates(selected, "usd", change=True)
+
+        if data:
+            for coin_id in selected:
+                if coin_id in data:
+                    c_info = ALL_COINS[coin_id]
+                    price = data[coin_id].get("usd", 0)
+                    change = data[coin_id].get("usd_24h_change", 0) or 0
+                    price_str = f"${price:,.2f}" if price >= 1 else f"${price:,.4f}"
+                    self.tree.insert("", "end",
+                                     values=(f"{c_info['icon']} {c_info['name']}", price_str, f"{change:.2f}%"))
+
+            self.time_label.config(text=f"Обновлено: {datetime.now().strftime('%H:%M:%S')}")
+            self.btn_convert.config(state="normal")
+        else:
+            messagebox.showerror("Ошибка", "Нет данных от API")
+
+        self.btn_get.config(state="normal", text="Запросить курсы")
 
     def open_converter(self):
-        selected_ids = [coin_id for coin_id, var in self.coin_vars.items() if var.get()]
-        if self.converter is not None and self.converter.top.winfo_exists():
-            self.converter.top.destroy()
-        self.converter = ConverterWindow(self.root, self.selected_coins_data, selected_ids)
+        if self.converter and self.converter.top.winfo_exists(): self.converter.top.destroy()
+        self.converter = ConverterWindow(self.root, [k for k, v in self.coin_vars.items() if v.get()])
 
 
 # ==========================================
-# КЛАСС 2: КОНВЕРТЕР (ТЁМНАЯ ТЕМА)
+# 4. КОНВЕРТЕР
 # ==========================================
 class ConverterWindow:
-    def __init__(self, parent, coins_data, selected_ids):
+    def __init__(self, parent, selected_ids):
         self.top = tk.Toplevel(parent)
         self.top.withdraw()
-        self.top.title("Конвертер валют")
-        self.top.configure(bg=CONVERTER_DARK["bg"])
+        self.top.title("Конвертер")
+        self.top.configure(bg=THEME_DARK["bg"])
         self.top.resizable(False, False)
 
-        try:
-            self.icon_image = tk.PhotoImage(file="icon.png")
-            self.top.iconphoto(True, self.icon_image)
-        except Exception as e:
-            print(f"Не удалось загрузить иконку: {e}")
-
-        self.theme = CONVERTER_DARK
-
-        all_coins = {
-            "bitcoin": ("BTC", "₿ Bitcoin"),
-            "ethereum": ("ETH", "Ξ Ethereum"),
-            "tether": ("USDT", "💵 Tether"),
-            "solana": ("SOL", "◎ Solana"),
-            "binancecoin": ("BNB", "🟡 BNB"),
-            "the-open-network": ("TON", "💎 Toncoin"),
-            "ripple": ("XRP", "✕ XRP"),
-            "cardano": ("ADA", "₳ Cardano"),
-            "dogecoin": ("DOGE", "Ð Dogecoin"),
-            "usd": ("USD", "💲 Доллар США"),
-            "eur": ("EUR", "💶 Евро"),
-            "rub": ("RUB", "₽ Российский рубль")
-        }
-
-        self.coins = {}
-        for coin_id in selected_ids:
-            if coin_id in all_coins:
-                self.coins[coin_id] = all_coins[coin_id]
-        self.coins["usd"] = all_coins["usd"]
-        self.coins["eur"] = all_coins["eur"]
-        self.coins["rub"] = all_coins["rub"]
-
-        self.from_combo = None
-        self.to_combo = None
-        self.from_entry = None
-        self.to_entry = None
-
-        self.rates = {}
-        self.fetch_rates()
+        self.selected_ids = selected_ids
+        self.rates = self._fetch_and_calc_rates()
         self.setup_ui()
-        self.apply_theme()
 
         self.top.deiconify()
-        position_next_to_parent(self.top, parent, offset_x=15)
-        self.top.transient(parent)
+        self.top.geometry(f"+{parent.winfo_rootx() + parent.winfo_width() + 15}+{parent.winfo_rooty()}")
+        self.top.geometry("")
+        self.top.transient(parent);
+        self.top.grab_set()
 
-    def fetch_rates(self):
-        crypto_ids = [k for k in self.coins.keys() if k not in ("usd", "eur", "rub")]
-        if not crypto_ids:
-            return
-        ids_str = ",".join(crypto_ids)
-        url = (f"https://api.coingecko.com/api/v3/simple/price?"
-               f"ids={ids_str}&vs_currencies=usd,eur,rub")
-        try:
-            res = requests.get(url, timeout=5).json()
-            for coin_id, prices in res.items():
-                if "usd" in prices: self.rates[f"{coin_id}_usd"] = prices["usd"]
-                if "eur" in prices: self.rates[f"{coin_id}_eur"] = prices["eur"]
-                if "rub" in prices: self.rates[f"{coin_id}_rub"] = prices["rub"]
-            self.rates["usd_usd"] = 1.0
-            self.rates["eur_eur"] = 1.0
-            self.rates["rub_rub"] = 1.0
-            self.rates["usd_eur"] = (1.0 / self.rates.get("bitcoin_eur", 1)
-                                     * self.rates.get("bitcoin_usd", 1)
-                                     if "bitcoin_eur" in self.rates else 0.92)
-            self.rates["eur_usd"] = 1.0 / self.rates["usd_eur"] if self.rates["usd_eur"] else 1.08
-            self.rates["usd_rub"] = (self.rates.get("bitcoin_rub", 90.0)
-                                     / self.rates.get("bitcoin_usd", 1.0)
-                                     if "bitcoin_rub" in self.rates else 90.0)
-            self.rates["rub_usd"] = 1.0 / self.rates["usd_rub"] if self.rates["usd_rub"] else 0.011
-            self.rates["eur_rub"] = (self.rates["usd_rub"] / self.rates["usd_eur"]
-                                     if self.rates["usd_eur"] else 100.0)
-            self.rates["rub_eur"] = 1.0 / self.rates["eur_rub"] if self.rates["eur_rub"] else 0.01
-        except Exception as e:
-            print(f"Ошибка загрузки курсов: {e}")
+    def _fetch_and_calc_rates(self):
+        rates = {}
+        crypto_ids = [k for k in self.selected_ids if ALL_COINS[k]["type"] == "crypto"]
+        data = CryptoAPI.get_rates(crypto_ids, "usd,eur,rub")
+        if data:
+            for coin_id, prices in data.items():
+                for cur, val in prices.items():
+                    rates[f"{coin_id}_{cur}"] = val
 
-    def validate_number(self, new_value):
-        if new_value == "":
-            return True
-        check_val = new_value.replace(",", ".")
-        try:
-            float(check_val)
-            return True
-        except ValueError:
-            if new_value in (".", ","):
-                return True
-            if new_value.startswith("-") and len(new_value) > 1:
-                try:
-                    float(check_val[1:])
-                    return True
-                except ValueError:
-                    pass
-            return False
+        base_usd = rates.get("tether_usd", rates.get("bitcoin_usd", 1))
+        rates["usd_rub"] = rates.get("tether_rub", rates.get("bitcoin_rub", 90)) / base_usd
+        rates["usd_eur"] = rates.get("tether_eur", rates.get("bitcoin_eur", 0.92)) / base_usd
+        return rates
 
     def setup_ui(self):
-        self.title_label = tk.Label(self.top, text="Конвертация",
-                                    font=("Segoe UI", 14, "bold"),
-                                    bg=self.theme["bg"], fg=self.theme["text"])
-        self.title_label.pack(pady=(15, 10))
+        t = THEME_DARK
 
-        self.from_frame = self.create_block("Продаю", "USDT", is_from=True)
-        self.from_frame.pack(fill="x", padx=25, pady=(5, 15))
+        # --- НАСТРОЙКА СТИЛЕЙ ДЛЯ COMBOBOX ---
+        style = ttk.Style()
+        style.theme_use("clam")
 
-        self.swap_btn = tk.Button(
-            self.top, text="⇅ Поменять", command=self.swap,
-            bg=self.theme["btn"], fg=self.theme["btn_fg"],
-            font=("Segoe UI", 10, "bold"), padx=15, pady=5,
-            relief="flat", cursor="hand2"
-        )
-        self.swap_btn.pack(pady=5)
-
-        self.to_frame = self.create_block("Покупаю", "BTC", is_from=False)
-        self.to_frame.pack(fill="x", padx=25, pady=(5, 20))
-
-        self.result_frame = tk.Frame(self.top, bg=self.theme["bg"])
-        self.result_frame.pack(fill="x", padx=25)
-
-        self.usd_label = tk.Label(self.result_frame, text="≈ $ 0,00",
-                                  font=("Segoe UI", 12, "bold"),
-                                  bg=self.theme["bg"], fg=self.theme["text"])
-        self.usd_label.pack(anchor="e")
-
-        self.rub_label = tk.Label(self.result_frame, text="≈ ₽ 0,00",
-                                  font=("Segoe UI", 12, "bold"),
-                                  bg=self.theme["bg"], fg=self.theme["text"])
-        self.rub_label.pack(anchor="e")
-
-        self.source_label = tk.Label(self.top, text="Данные: CoinGecko API",
-                                     font=("Segoe UI", 7),
-                                     bg=self.theme["bg"], fg=self.theme["subtext"])
-        self.source_label.pack(side="bottom", pady=10)
-
-    def create_block(self, title, default_coin, is_from):
-        frame = tk.Frame(self.top, bg=self.theme["card"], highlightthickness=1,
-                         highlightbackground=self.theme["subtext"])
-
-        title_lbl = tk.Label(frame, text=title, font=("Segoe UI", 9),
-                             bg=self.theme["card"], fg=self.theme["subtext"])
-        title_lbl.pack(anchor="w", padx=12, pady=(10, 2))
-
-        row = tk.Frame(frame, bg=self.theme["card"])
-        row.pack(fill="x", padx=12, pady=(0, 15))
-
-        coin_values = [f"{v[0]} - {v[1]}" for k, v in self.coins.items()]
-        combo = ttk.Combobox(row, values=coin_values, width=16,
-                             state="readonly", font=("Segoe UI", 10))
-        combo.pack(side="left")
-
-        default_id = None
-        for k, v in self.coins.items():
-            if v[0] == default_coin:
-                default_id = k
-                break
-        if default_id:
-            combo.set(f"{self.coins[default_id][0]} - {self.coins[default_id][1]}")
-        else:
-            combo.set(coin_values[0])
-
-        entry = tk.Entry(
-            row, font=("Consolas", 16, "bold"),
-            bg=self.theme["entry_bg"], fg=self.theme["entry_fg"],
-            insertbackground=self.theme["entry_fg"],
-            selectbackground="#004400", selectforeground="#00FF00",
-            bd=0, justify="right",
-            validate="key",
-            validatecommand=(self.top.register(self.validate_number), "%P")
-        )
-        entry.pack(side="right", fill="x", expand=True, padx=(10, 0))
-
-        if is_from:
-            self.from_combo = combo
-            self.from_entry = entry
-            entry.insert(0, "1")
-            entry.bind("<KeyRelease>", self.calculate)
-            combo.bind("<<ComboboxSelected>>", lambda e: self.calculate())
-        else:
-            self.to_combo = combo
-            self.to_entry = entry
-            entry.config(state="readonly",
-                         readonlybackground=self.theme["entry_bg"],
-                         fg=self.theme["entry_fg"])
-
-        frame._title_lbl = title_lbl
-        frame._row = row
-        return frame
-
-    def get_id_by_ticker(self, ticker):
-        for k, v in self.coins.items():
-            if v[0] == ticker:
-                return k
-        return None
-
-    def calculate(self, event=None):
-        try:
-            amount_str = self.from_entry.get().replace(",", ".")
-            if not amount_str:
-                return
-            amount = float(amount_str)
-
-            from_ticker = self.from_combo.get().split(" - ")[0]
-            to_ticker = self.to_combo.get().split(" - ")[0]
-            from_id = self.get_id_by_ticker(from_ticker)
-            to_id = self.get_id_by_ticker(to_ticker)
-            if not from_id or not to_id:
-                return
-
-            if from_id in ("usd", "eur", "rub"):
-                if from_id == "usd": from_to_usd = 1.0
-                elif from_id == "eur": from_to_usd = 1.0 / self.rates.get("usd_eur", 0.92)
-                elif from_id == "rub": from_to_usd = 1.0 / self.rates.get("usd_rub", 90.0)
-            else:
-                from_to_usd = self.rates.get(f"{from_id}_usd", 0)
-
-            if to_id in ("usd", "eur", "rub"):
-                if to_id == "usd": usd_to_target = 1.0
-                elif to_id == "eur": usd_to_target = self.rates.get("usd_eur", 0.92)
-                elif to_id == "rub": usd_to_target = self.rates.get("usd_rub", 90.0)
-            else:
-                price_usd = self.rates.get(f"{to_id}_usd", 0)
-                usd_to_target = 1.0 / price_usd if price_usd else 0
-
-            if from_to_usd == 0 or usd_to_target == 0:
-                self.to_entry.config(state="normal")
-                self.to_entry.delete(0, tk.END)
-                self.to_entry.insert(0, "Нет данных")
-                self.to_entry.config(state="readonly")
-                return
-
-            total_usd = amount * from_to_usd
-            total_target = total_usd * usd_to_target
-
-            self.to_entry.config(state="normal")
-            self.to_entry.delete(0, tk.END)
-            if total_target < 0.01:
-                res_str = f"{total_target:.6f}".replace(".", ",")
-            else:
-                res_str = f"{total_target:.4f}".replace(".", ",")
-            self.to_entry.insert(0, res_str)
-            self.to_entry.config(state="readonly")
-
-            self.usd_label.config(text=f"≈ $ {total_usd:,.2f}".replace(".", ","))
-            rub_total = total_usd * self.rates.get("usd_rub", 90.0)
-            self.rub_label.config(text=f"≈ ₽ {rub_total:,.2f}".replace(".", ","))
-        except ValueError:
-            pass
-
-    def swap(self):
-        if not self.from_combo:
-            return
-        from_val = self.from_combo.get()
-        to_val = self.to_combo.get()
-        self.from_combo.set(to_val)
-        self.to_combo.set(from_val)
-        self.calculate()
-
-    def apply_theme(self):
-        t = self.theme
-
-        self.top.configure(bg=t["bg"])
-        self.title_label.configure(bg=t["bg"], fg=t["text"])
-
-        for frame in (self.from_frame, self.to_frame):
-            frame.configure(bg=t["card"], highlightbackground=t["subtext"])
-            if hasattr(frame, "_title_lbl"):
-                frame._title_lbl.configure(bg=t["card"], fg=t["subtext"])
-            if hasattr(frame, "_row"):
-                frame._row.configure(bg=t["card"])
-
-        self.swap_btn.configure(bg=t["btn"], fg=t["btn_fg"])
-
-        for entry in (self.from_entry, self.to_entry):
-            if entry is None:
-                continue
-            entry.configure(
-                bg=t["entry_bg"], fg=t["entry_fg"],
-                insertbackground=t["entry_fg"],
-                readonlybackground=t["entry_bg"],
-            )
-
-        self.result_frame.configure(bg=t["bg"])
-        self.usd_label.configure(bg=t["bg"], fg=t["text"])
-        self.rub_label.configure(bg=t["bg"], fg=t["text"])
-        self.source_label.configure(bg=t["bg"], fg=t["subtext"])
-
-        self._apply_combobox_theme()
-
-    def _apply_combobox_theme(self):
-        t = self.theme
-        style = ttk.Style(self.top)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-
+        # Настройка поля ввода (когда список закрыт)
         style.configure(
             "TCombobox",
-            fieldbackground=t["combo_bg"],
-            background=t["combo_bg"],
-            foreground=t["combo_fg"],
-            arrowcolor=t["combo_fg"],
-            bordercolor=t["subtext"],
-            lightcolor=t["combo_bg"],
-            darkcolor=t["combo_bg"],
+            fieldbackground=t["combo_bg"],  # Темно-серый фон
+            background=t["combo_bg"],  # Фон кнопки со стрелочкой
+            foreground=t["combo_fg"],  # Белый текст
+            arrowcolor=t["combo_fg"],  # Белая стрелочка
             selectbackground=t["combo_select_bg"],
-            selectforeground=t["combo_select_fg"],
+            selectforeground=t["combo_select_fg"]
         )
+
+        # Принудительно фиксируем цвета в состоянии readonly
         style.map(
             "TCombobox",
             fieldbackground=[("readonly", t["combo_bg"])],
             foreground=[("readonly", t["combo_fg"])],
             background=[("readonly", t["combo_bg"])],
             selectbackground=[("readonly", t["combo_select_bg"])],
-            selectforeground=[("readonly", t["combo_select_fg"])],
+            selectforeground=[("readonly", t["combo_select_fg"])]
         )
 
+        # Настройка раскрывающегося списка
         self.top.option_add("*TCombobox*Listbox.background", t["combo_bg"])
         self.top.option_add("*TCombobox*Listbox.foreground", t["combo_fg"])
         self.top.option_add("*TCombobox*Listbox.selectBackground", t["combo_select_bg"])
         self.top.option_add("*TCombobox*Listbox.selectForeground", t["combo_select_fg"])
-        self.top.option_add("*TCombobox*Listbox.font", ("Segoe UI", 10))
+        # ---------------------------------------
+
+        tk.Label(self.top, text="Конвертация", font=("Segoe UI", 14, "bold"), bg=t["bg"], fg=t["text"]).pack(pady=10)
+
+        self.from_combo, self.from_entry = self.create_input_block("Продаю", "USDT")
+        tk.Button(self.top, text="⇅ Поменять", command=self.swap, bg=t["btn"], fg="white",
+                  font=("Segoe UI", 10, "bold"), padx=15, pady=5, relief="flat").pack(pady=5)
+        self.to_combo, self.to_entry = self.create_input_block("Покупаю", "BTC")
+
+        self.usd_label = tk.Label(self.top, text="≈ $ 0,00", bg=t["bg"], fg=t["text"], font=("Segoe UI", 12, "bold"))
+        self.usd_label.pack(anchor="e", padx=30)
+        self.rub_label = tk.Label(self.top, text="≈ ₽ 0,00", bg=t["bg"], fg=t["text"], font=("Segoe UI", 12, "bold"))
+        self.rub_label.pack(anchor="e", padx=30)
+
+        tk.Button(self.top, text="💾 Сохранить в файл", command=self.save_to_file,
+                  bg="#4CAF50", fg="white", font=("Segoe UI", 10, "bold"), padx=15, pady=5, relief="flat").pack(pady=15)
+
+    def create_input_block(self, title, default_ticker):
+        t = THEME_DARK
+        frame = tk.Frame(self.top, bg=t["card"], highlightthickness=1, highlightbackground=t["subtext"])
+        frame.pack(fill="x", padx=20, pady=5)
+        tk.Label(frame, text=title, bg=t["card"], fg=t["subtext"], font=("Segoe UI", 9)).pack(anchor="w", padx=10,
+                                                                                              pady=(5, 0))
+
+        row = tk.Frame(frame, bg=t["card"])
+        row.pack(fill="x", padx=10, pady=(0, 10))
+
+        available = [k for k in self.selected_ids if ALL_COINS[k]["type"] == "crypto"] + FIAT_CURRENCIES
+        combo_values = [f"{ALL_COINS[k]['ticker']} - {ALL_COINS[k]['name']}" for k in available]
+
+        combo = ttk.Combobox(row, values=combo_values, state="readonly", font=("Segoe UI", 10))
+        combo.pack(side="left")
+        combo.set(next((v for v in combo_values if v.startswith(default_ticker)), combo_values[0]))
+        combo.bind("<<ComboboxSelected>>", self.calculate)
+
+        def get_tooltip():
+            ticker = combo.get().split(" ")[0]
+            for k, v in ALL_COINS.items():
+                if v["ticker"] == ticker: return v["desc"]
+            return ""
+
+        ToolTip(combo, get_tooltip)
+
+        entry = tk.Entry(row, font=("Consolas", 16, "bold"), bg=t["entry_bg"], fg=t["entry_fg"],
+                         insertbackground=t["entry_fg"],
+                         selectbackground="#004400", selectforeground="#00FF00",
+                         justify="right", bd=0)
+        entry.pack(side="right", fill="x", expand=True, padx=(10, 0))
+
+        if title == "Продаю":
+            entry.insert(0, "1")
+            entry.bind("<KeyRelease>", self.calculate)
+        else:
+            entry.config(state="readonly", readonlybackground=t["entry_bg"])
+        return combo, entry
+
+    def _get_usd_rate(self, coin_id):
+        if coin_id == "usd": return 1.0
+        if coin_id == "eur": return 1.0 / self.rates.get("usd_eur", 0.92)
+        if coin_id == "rub": return 1.0 / self.rates.get("usd_rub", 90)
+        return self.rates.get(f"{coin_id}_usd", 0)
+
+    def calculate(self, event=None):
+        try:
+            amount = float(self.from_entry.get().replace(",", "."))
+        except ValueError:
+            return
+
+        from_id = next(k for k, v in ALL_COINS.items() if v["ticker"] == self.from_combo.get().split(" ")[0])
+        to_id = next(k for k, v in ALL_COINS.items() if v["ticker"] == self.to_combo.get().split(" ")[0])
+
+        rate_f = self._get_usd_rate(from_id)
+        rate_t = self._get_usd_rate(to_id)
+        if not rate_f or not rate_t: return
+
+        total_usd = amount * rate_f
+        total_target = total_usd / rate_t
+
+        self.to_entry.config(state="normal")
+        self.to_entry.delete(0, tk.END)
+        self.to_entry.insert(0, f"{total_target:.6f}".replace(".", ","))
+        self.to_entry.config(state="readonly")
+
+        self.usd_label.config(text=f"≈ $ {total_usd:,.2f}".replace(".", ","))
+        self.rub_label.config(text=f"≈ ₽ {total_usd * self.rates.get('usd_rub', 90):,.2f}".replace(".", ","))
+
+    def swap(self):
+        f_val, t_val = self.from_combo.get(), self.to_combo.get()
+        self.from_combo.set(t_val);
+        self.to_combo.set(f_val)
+        self.calculate()
+
+    def save_to_file(self):
+        path = filedialog.asksaveasfilename(defaultextension=".txt", title="Сохранить отчет")
+        if not path: return
+
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(f"=== ОТЧЕТ О КОНВЕРТАЦИИ ===\nДата: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}\n\n")
+                f.write(
+                    f"Обмен: {self.from_entry.get()} {self.from_combo.get()} -> {self.to_entry.get()} {self.to_combo.get()}\n\n")
+                f.write("--- АКТУАЛЬНЫЕ КУРСЫ ---\n")
+
+                for key, val in self.rates.items():
+                    if key.endswith("_usd"):
+                        name = ALL_COINS.get(key.replace("_usd", ""), {}).get("name", key)
+                        f.write(f"{name}: ${val:,.2f}\n")
+                    elif key == "usd_rub":
+                        f.write(f"USD/RUB: {val:,.2f}\n")
+                    elif key == "usd_eur":
+                        f.write(f"USD/EUR: {val:,.2f}\n")
+
+            messagebox.showinfo("Готово", "Файл сохранен!")
+        except Exception as e:
+            messagebox.showerror("Ошибка", str(e))
 
 
-# ==========================================
-# ЗАПУСК
-# ==========================================
 if __name__ == "__main__":
     root = tk.Tk()
     app = RatesWindow(root)
