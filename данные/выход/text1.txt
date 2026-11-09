@@ -1,0 +1,6 @@
+1. Apple
+2. Banana
+3. Cat
+4. Cherry
+5. Dog
+6. Elephant

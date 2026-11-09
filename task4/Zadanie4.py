@@ -1932,40 +1932,66 @@ def validate_int(new_value):
 
 vcmd = (root.register(validate_int), "%P")
 
-
-def auto_set_width():
+# =========================================================
+#  ВАЛИДАЦИЯ И УСТАНОВКА ТОЛЩИНЫ ПЕРА (Задание 4)
+# =========================================================
+def apply_pen_width():
+    """Считывает значение из Entry, обрабатывает ошибки и обновляет pen_width."""
     global pen_width
-    if width_var is None:
-        return
-    s = width_var.get().strip()
-    if s == "" or not s.isdigit():
-        return
-    value = int(s)
-    if value < 1:
-        return
-    max_width = max(1, min(canvas_width, canvas_height) // 2)
-    if value > max_width:
-        value = max_width
-        width_var.set(str(value))
-        return
-    pen_width = value
+    try:
+        # Пытаемся получить целое число из поля ввода
+        new_width = int(width_var.get().strip())
+
+        # Проверяем, чтобы число было положительным
+        if new_width <= 0:
+            raise ValueError("Толщина должна быть больше нуля.")
+
+        pen_width = new_width
+
+        # Синхронизируем ползунок (если он есть), чтобы он показывал новое значение
+        if width_scale is not None:
+            width_scale.set(pen_width)
+
+    except ValueError:
+        # Обработка случая, если введено не целое число или пустая строка
+        mb.showerror("Ошибка ввода", "Пожалуйста, введите целое положительное число для толщины пера.")
+        # Возвращаем в поле текущее корректное значение
+        width_var.set(str(pen_width))
+    except Exception as e:
+        mb.showerror("Ошибка", f"Не удалось установить толщину: {e}")
+        width_var.set(str(pen_width))
 
 
 def _build_width_widget(parent):
     global width_var, width_entry
-    width_var = StringVar(value=str(pen_width))
-    width_var.trace_add("write", lambda *args: auto_set_width())
 
-    width_entry = Entry(parent, width=4, font=FONT_BTN,
+    # Создаем переменную, но БЕЗ автоматического обновления через trace_add
+    width_var = StringVar(value=str(pen_width))
+
+    # Поле ввода
+    width_entry = Entry(parent, width=5, font=FONT_BTN,
                         bd=1, relief=FLAT,
                         bg=T["card"], fg=T["text"],
                         insertbackground=T["text"],
                         highlightthickness=1,
                         highlightbackground=T["border"],
                         highlightcolor=T["accent"],
-                        textvariable=width_var,
-                        validate="key", validatecommand=vcmd)
-    width_entry.pack(side=LEFT)
+                        textvariable=width_var)
+    width_entry.pack(side=LEFT, padx=(0, 5))
+
+    # Привязываем нажатие Enter к кнопке
+    width_entry.bind("<Return>", lambda e: apply_pen_width())
+
+    # Кнопка установки толщины
+    btn_apply = Button(parent, text="OK", font=FONT_SMALL,
+                       bd=0, relief=FLAT,
+                       bg=T["accent"], fg=T["accent_fg"],
+                       activebackground=T["accent_hov"],
+                       activeforeground=T["accent_fg"],
+                       padx=8, pady=2, cursor="hand2",
+                       highlightthickness=0,
+                       command=apply_pen_width)
+    btn_apply.pack(side=LEFT)
 
 
 # =========================================================
