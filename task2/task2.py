@@ -1,4 +1,4 @@
-def add(x, y):
+111def add(x, y):
     return x + y
 
 def subtract(x, y):
@@ -19,7 +19,7 @@ def log(result):
 
 def show_history():
     """Читает файл calculations.txt и выводит историю вычислений."""
-    print("История вычислений:")
+    print("История вычислений:")ф
     try:
         with open("calculations.txt", "r", encoding="utf-8") as file:
             lines = file.readlines()
