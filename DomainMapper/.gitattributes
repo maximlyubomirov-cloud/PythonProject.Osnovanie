@@ -1,4 +1,0 @@
-* text=auto
-*.bat -text
-Windows/DomainMapper.exe export-ignore
-utilities/win/*.exe export-ignore

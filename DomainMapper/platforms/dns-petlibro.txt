@@ -1,7 +1,0 @@
-iotcplatform.com
-braze.com
-amplitude.com
-api.us.petlibro.com
-appsflyersdk.com
-api.lab.amplitude.com
-petlibro.com

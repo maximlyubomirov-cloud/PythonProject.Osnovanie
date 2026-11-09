@@ -1,7 +1,4 @@
-﻿# Репозиторий преподавателя — не коммитим
-IgorLeonSimf/
-
-# Служебное Python/IDE
+﻿# Служебное Python/IDE
 .idea/
 .venv/
 __pycache__/
@@ -18,12 +15,9 @@ dist/
 history.json
 dict.json
 code.txt
-text*.txt
 test.jpg
 01-Strah.mp3
 GraphEditor.spec
 .venv/
 __pycache__/
 *.db
-main
-License

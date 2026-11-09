@@ -1,8 +1,0 @@
-codeium.com
-codeiumdata.com
-inference.codeium.com
-server.codeium.com
-unleash.codeium.com
-web-backend.codeium.com
-windsurf.build
-windsurf.com
