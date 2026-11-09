@@ -14,34 +14,53 @@ def center_window(window, width, height):
     window.geometry(f"{width}x{height}+{x}+{y}")
 
 
+def position_next_to_parent(window, parent, offset_x=15, offset_y=0):
+    """Размещает окно справа от родительского окна."""
+    window.update_idletasks()
+    parent.update_idletasks()
+
+    parent_x = parent.winfo_rootx()
+    parent_y = parent.winfo_rooty()
+    parent_w = parent.winfo_width()
+
+    window_w = window.winfo_reqwidth()
+    window_h = window.winfo_reqheight()
+
+    new_x = parent_x + parent_w + offset_x
+    new_y = parent_y + offset_y
+
+    window.geometry(f"{window_w}x{window_h}+{new_x}+{new_y}")
+
+
 # ==========================================
 # КЛАСС 1: ОКНО С КУРСАМИ
 # ==========================================
 class RatesWindow:
     def __init__(self, root):
         self.root = root
-        self.root.withdraw()  # Скрываем окно до полной отрисовки
+        self.root.withdraw()
 
         self.root.title("Калькулятор криптовалют (CoinGecko)")
         self.root.configure(bg="#F3F3F3")
         self.root.resizable(False, False)
+        self.root.geometry("520x1")
 
-        center_window(self.root, 520, 580)
-
+        # Добавляем иконки в названия для первого окна
         self.coins = {
-            "bitcoin": "Bitcoin (BTC)",
-            "ethereum": "Ethereum (ETH)",
-            "solana": "Solana (SOL)",
-            "the-open-network": "Toncoin (TON)",
-            "ripple": "XRP (XRP)",
-            "cardano": "Cardano (ADA)",
-            "dogecoin": "Dogecoin (DOGE)",
-            "binancecoin": "BNB (BNB)"
+            "bitcoin": "₿ Bitcoin (BTC)",
+            "ethereum": "Ξ Ethereum (ETH)",
+            "solana": "◎ Solana (SOL)",
+            "the-open-network": "💎 Toncoin (TON)",
+            "ripple": "✕ XRP (XRP)",
+            "cardano": "₳ Cardano (ADA)",
+            "dogecoin": "Ð Dogecoin (DOGE)",
+            "binancecoin": "🟡 BNB (BNB)"
         }
         self.selected_coins_data = {}
         self.setup_ui()
 
-        self.root.deiconify()  # Показываем окно
+        self.root.deiconify()
+        self.root.geometry("")
 
     def setup_ui(self):
         header = tk.Label(self.root, text="Курсы криптовалют к USD",
@@ -74,6 +93,27 @@ class RatesWindow:
                                             bg="#4CAF50", fg="white", font=("Segoe UI", 10, "bold"),
                                             padx=15, pady=5, relief="flat", cursor="hand2", state="disabled")
         self.btn_open_converter.pack(side="left", padx=5)
+
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure("Treeview.Heading",
+                        background="#000000",
+                        foreground="#00FF00",
+                        font=("Consolas", 10, "bold"),
+                        relief="flat")
+        style.map("Treeview.Heading", background=[('active', '#003300')])
+
+        style.configure("Treeview",
+                        background="#000000",
+                        foreground="#00FF00",
+                        fieldbackground="#000000",
+                        font=("Consolas", 10, "bold"),
+                        rowheight=25)
+
+        style.map("Treeview",
+                  background=[('selected', '#004400')],
+                  foreground=[('selected', '#00FF00')])
 
         columns = ("coin", "price", "change")
         self.tree = ttk.Treeview(self.root, columns=columns, show="headings", height=8)
@@ -116,7 +156,7 @@ class RatesWindow:
                 if coin_id in data:
                     name = self.coins[coin_id]
                     price = data[coin_id].get("usd", 0)
-                    change = data[coin_id].get("usd_24h_change", 0)
+                    change = data[coin_id].get("usd_24hr_change", 0)
 
                     price_str = f"${price:,.2f}" if price >= 1 else f"${price:,.4f}"
                     change_str = f"{change:.2f}%" if change is not None else "—"
@@ -129,6 +169,8 @@ class RatesWindow:
             now = datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M:%S")
             self.time_label.config(text=f"Последнее обновление: {now} (МСК)")
             self.btn_open_converter.config(state="normal")
+
+            self.root.geometry("")
 
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось получить данные:\n{e}")
@@ -146,27 +188,26 @@ class RatesWindow:
 class ConverterWindow:
     def __init__(self, parent, coins_data, selected_ids):
         self.top = tk.Toplevel(parent)
-        self.top.withdraw()  # Скрываем окно
+        self.top.withdraw()
 
         self.top.title("Конвертер валют")
         self.top.configure(bg="#F3F3F3")
         self.top.resizable(False, False)
 
-        center_window(self.top, 440, 520)
-
+        # Добавляем иконки для конвертера
         all_coins = {
-            "bitcoin": ("BTC", "Bitcoin"),
-            "ethereum": ("ETH", "Ethereum"),
-            "tether": ("USDT", "Tether"),
-            "solana": ("SOL", "Solana"),
-            "binancecoin": ("BNB", "BNB"),
-            "the-open-network": ("TON", "Toncoin"),
-            "ripple": ("XRP", "XRP"),
-            "cardano": ("ADA", "Cardano"),
-            "dogecoin": ("DOGE", "Dogecoin"),
-            "usd": ("USD", "Доллар США"),
-            "eur": ("EUR", "Евро"),
-            "rub": ("RUB", "Российский рубль")
+            "bitcoin": ("BTC", "₿ Bitcoin"),
+            "ethereum": ("ETH", "Ξ Ethereum"),
+            "tether": ("USDT", "💵 Tether"),
+            "solana": ("SOL", "◎ Solana"),
+            "binancecoin": ("BNB", "🟡 BNB"),
+            "the-open-network": ("TON", "💎 Toncoin"),
+            "ripple": ("XRP", "✕ XRP"),
+            "cardano": ("ADA", "₳ Cardano"),
+            "dogecoin": ("DOGE", "Ð Dogecoin"),
+            "usd": ("USD", "💲 Доллар США"),
+            "eur": ("EUR", "💶 Евро"),
+            "rub": ("RUB", "₽ Российский рубль")
         }
 
         self.coins = {}
@@ -187,7 +228,9 @@ class ConverterWindow:
         self.fetch_rates()
         self.setup_ui()
 
-        self.top.deiconify()  # Показываем окно
+        self.top.deiconify()
+        position_next_to_parent(self.top, parent, offset_x=15)
+
         self.top.transient(parent)
         self.top.grab_set()
 
@@ -211,9 +254,11 @@ class ConverterWindow:
             self.rates["eur_eur"] = 1.0
             self.rates["rub_rub"] = 1.0
 
-            self.rates["usd_eur"] = 1.0 / self.rates.get("bitcoin_eur", 1) * self.rates.get("bitcoin_usd", 1) if "bitcoin_eur" in self.rates else 0.92
+            self.rates["usd_eur"] = 1.0 / self.rates.get("bitcoin_eur", 1) * self.rates.get("bitcoin_usd",
+                                                                                            1) if "bitcoin_eur" in self.rates else 0.92
             self.rates["eur_usd"] = 1.0 / self.rates["usd_eur"] if self.rates["usd_eur"] else 1.08
-            self.rates["usd_rub"] = self.rates.get("bitcoin_rub", 90.0) / self.rates.get("bitcoin_usd", 1.0) if "bitcoin_rub" in self.rates else 90.0
+            self.rates["usd_rub"] = self.rates.get("bitcoin_rub", 90.0) / self.rates.get("bitcoin_usd",
+                                                                                         1.0) if "bitcoin_rub" in self.rates else 90.0
             self.rates["rub_usd"] = 1.0 / self.rates["usd_rub"] if self.rates["usd_rub"] else 0.011
             self.rates["eur_rub"] = self.rates["usd_rub"] / self.rates["usd_eur"] if self.rates["usd_eur"] else 100.0
             self.rates["rub_eur"] = 1.0 / self.rates["eur_rub"] if self.rates["eur_rub"] else 0.01
@@ -265,22 +310,26 @@ class ConverterWindow:
         self.result_frame = tk.Frame(self.top, bg="#F3F3F3")
         self.result_frame.pack(fill="x", padx=25)
 
-        self.usd_label = tk.Label(self.result_frame, text="≈ $ 0,00", font=("Segoe UI", 12, "bold"), bg="#F3F3F3", fg="#212121")
+        self.usd_label = tk.Label(self.result_frame, text="≈ $ 0,00", font=("Segoe UI", 12, "bold"), bg="#F3F3F3",
+                                  fg="#212121")
         self.usd_label.pack(anchor="e")
 
-        self.rub_label = tk.Label(self.result_frame, text="≈ ₽ 0,00", font=("Segoe UI", 12, "bold"), bg="#F3F3F3", fg="#212121")
+        self.rub_label = tk.Label(self.result_frame, text="≈ ₽ 0,00", font=("Segoe UI", 12, "bold"), bg="#F3F3F3",
+                                  fg="#212121")
         self.rub_label.pack(anchor="e")
 
     def create_block(self, title, default_coin, is_from):
         frame = tk.Frame(self.top, bg="#FFFFFF", highlightthickness=1, highlightbackground="#DDD")
 
-        tk.Label(frame, text=title, font=("Segoe UI", 9), bg="#FFFFFF", fg="#666").pack(anchor="w", padx=12, pady=(10, 2))
+        tk.Label(frame, text=title, font=("Segoe UI", 9), bg="#FFFFFF", fg="#666").pack(anchor="w", padx=12,
+                                                                                        pady=(10, 2))
 
         row = tk.Frame(frame, bg="#FFFFFF")
         row.pack(fill="x", padx=12, pady=(0, 15))
 
+        # Теперь в выпадающем списке будут иконки
         coin_values = [f"{v[0]} - {v[1]}" for k, v in self.coins.items()]
-        combo = ttk.Combobox(row, values=coin_values, width=14, state="readonly")
+        combo = ttk.Combobox(row, values=coin_values, width=16, state="readonly", font=("Segoe UI", 10))
         combo.pack(side="left")
 
         default_id = None
@@ -307,7 +356,8 @@ class ConverterWindow:
             validate="key",
             validatecommand=(self.top.register(self.validate_number), "%P")
         )
-        entry.pack(side="right", fill="x", expand=True)
+        # Изменен отступ слева с 20 на 10 пикселей
+        entry.pack(side="right", fill="x", expand=True, padx=(10, 0))
 
         if is_from:
             self.from_combo = combo
@@ -343,16 +393,22 @@ class ConverterWindow:
             if not from_id or not to_id: return
 
             if from_id in ("usd", "eur", "rub"):
-                if from_id == "usd": from_to_usd = 1.0
-                elif from_id == "eur": from_to_usd = 1.0 / self.rates.get("usd_eur", 0.92)
-                elif from_id == "rub": from_to_usd = 1.0 / self.rates.get("usd_rub", 90.0)
+                if from_id == "usd":
+                    from_to_usd = 1.0
+                elif from_id == "eur":
+                    from_to_usd = 1.0 / self.rates.get("usd_eur", 0.92)
+                elif from_id == "rub":
+                    from_to_usd = 1.0 / self.rates.get("usd_rub", 90.0)
             else:
                 from_to_usd = self.rates.get(f"{from_id}_usd", 0)
 
             if to_id in ("usd", "eur", "rub"):
-                if to_id == "usd": usd_to_target = 1.0
-                elif to_id == "eur": usd_to_target = self.rates.get("usd_eur", 0.92)
-                elif to_id == "rub": usd_to_target = self.rates.get("usd_rub", 90.0)
+                if to_id == "usd":
+                    usd_to_target = 1.0
+                elif to_id == "eur":
+                    usd_to_target = self.rates.get("usd_eur", 0.92)
+                elif to_id == "rub":
+                    usd_to_target = self.rates.get("usd_rub", 90.0)
             else:
                 price_usd = self.rates.get(f"{to_id}_usd", 0)
                 usd_to_target = 1.0 / price_usd if price_usd else 0
