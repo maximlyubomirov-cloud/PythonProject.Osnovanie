@@ -4,18 +4,29 @@ import requests
 from datetime import datetime, timezone
 
 
+def center_window(window, width, height):
+    """Размещает окно по центру экрана."""
+    window.update_idletasks()
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+    window.geometry(f"{width}x{height}+{x}+{y}")
+
+
 # ==========================================
 # КЛАСС 1: ОКНО С КУРСАМИ
 # ==========================================
 class RatesWindow:
     def __init__(self, root):
         self.root = root
+        self.root.withdraw()  # Скрываем окно до полной отрисовки
+
         self.root.title("Калькулятор криптовалют (CoinGecko)")
-        # Задаем точный размер окна
-        self.root.geometry("520x580")
         self.root.configure(bg="#F3F3F3")
-        # Запрещаем пользователю менять размер окна
         self.root.resizable(False, False)
+
+        center_window(self.root, 520, 580)
 
         self.coins = {
             "bitcoin": "Bitcoin (BTC)",
@@ -29,6 +40,8 @@ class RatesWindow:
         }
         self.selected_coins_data = {}
         self.setup_ui()
+
+        self.root.deiconify()  # Показываем окно
 
     def setup_ui(self):
         header = tk.Label(self.root, text="Курсы криптовалют к USD",
@@ -133,12 +146,13 @@ class RatesWindow:
 class ConverterWindow:
     def __init__(self, parent, coins_data, selected_ids):
         self.top = tk.Toplevel(parent)
+        self.top.withdraw()  # Скрываем окно
+
         self.top.title("Конвертер валют")
-        self.top.geometry("440x520")  # Чуть увеличили высоту для отступов
         self.top.configure(bg="#F3F3F3")
         self.top.resizable(False, False)
-        self.top.transient(parent)
-        self.top.grab_set()
+
+        center_window(self.top, 440, 520)
 
         all_coins = {
             "bitcoin": ("BTC", "Bitcoin"),
@@ -160,7 +174,6 @@ class ConverterWindow:
             if coin_id in all_coins:
                 self.coins[coin_id] = all_coins[coin_id]
 
-        # Всегда добавляем фиатные валюты
         self.coins["usd"] = all_coins["usd"]
         self.coins["eur"] = all_coins["eur"]
         self.coins["rub"] = all_coins["rub"]
@@ -173,6 +186,10 @@ class ConverterWindow:
         self.rates = {}
         self.fetch_rates()
         self.setup_ui()
+
+        self.top.deiconify()  # Показываем окно
+        self.top.transient(parent)
+        self.top.grab_set()
 
     def fetch_rates(self):
         crypto_ids = [k for k in self.coins.keys() if k not in ("usd", "eur", "rub")]
@@ -194,11 +211,9 @@ class ConverterWindow:
             self.rates["eur_eur"] = 1.0
             self.rates["rub_rub"] = 1.0
 
-            self.rates["usd_eur"] = 1.0 / self.rates.get("bitcoin_eur", 1) * self.rates.get("bitcoin_usd",
-                                                                                            1) if "bitcoin_eur" in self.rates else 0.92
+            self.rates["usd_eur"] = 1.0 / self.rates.get("bitcoin_eur", 1) * self.rates.get("bitcoin_usd", 1) if "bitcoin_eur" in self.rates else 0.92
             self.rates["eur_usd"] = 1.0 / self.rates["usd_eur"] if self.rates["usd_eur"] else 1.08
-            self.rates["usd_rub"] = self.rates.get("bitcoin_rub", 90.0) / self.rates.get("bitcoin_usd",
-                                                                                         1.0) if "bitcoin_rub" in self.rates else 90.0
+            self.rates["usd_rub"] = self.rates.get("bitcoin_rub", 90.0) / self.rates.get("bitcoin_usd", 1.0) if "bitcoin_rub" in self.rates else 90.0
             self.rates["rub_usd"] = 1.0 / self.rates["usd_rub"] if self.rates["usd_rub"] else 0.011
             self.rates["eur_rub"] = self.rates["usd_rub"] / self.rates["usd_eur"] if self.rates["usd_eur"] else 100.0
             self.rates["rub_eur"] = 1.0 / self.rates["eur_rub"] if self.rates["eur_rub"] else 0.01
@@ -228,11 +243,9 @@ class ConverterWindow:
         tk.Label(self.top, text="Конвертация", font=("Segoe UI", 14, "bold"),
                  bg="#F3F3F3", fg="#212121").pack(pady=(15, 10))
 
-        # Блок "Продаю" с увеличенными отступами
         self.from_frame = self.create_block("Продаю", "USDT", is_from=True)
         self.from_frame.pack(fill="x", padx=25, pady=(5, 15))
 
-        # Кнопка Swap в стиле первой кнопки
         swap_btn = tk.Button(
             self.top,
             text="⇅ Поменять",
@@ -246,28 +259,22 @@ class ConverterWindow:
         )
         swap_btn.pack(pady=5)
 
-        # Блок "Покупаю" с увеличенными отступами
         self.to_frame = self.create_block("Покупаю", "BTC", is_from=False)
         self.to_frame.pack(fill="x", padx=25, pady=(5, 20))
 
-        # Результаты в USD и RUB
         self.result_frame = tk.Frame(self.top, bg="#F3F3F3")
         self.result_frame.pack(fill="x", padx=25)
 
-        self.usd_label = tk.Label(self.result_frame, text="≈ $ 0,00", font=("Segoe UI", 12, "bold"), bg="#F3F3F3",
-                                  fg="#212121")
+        self.usd_label = tk.Label(self.result_frame, text="≈ $ 0,00", font=("Segoe UI", 12, "bold"), bg="#F3F3F3", fg="#212121")
         self.usd_label.pack(anchor="e")
 
-        self.rub_label = tk.Label(self.result_frame, text="≈ ₽ 0,00", font=("Segoe UI", 12, "bold"), bg="#F3F3F3",
-                                  fg="#212121")
+        self.rub_label = tk.Label(self.result_frame, text="≈ ₽ 0,00", font=("Segoe UI", 12, "bold"), bg="#F3F3F3", fg="#212121")
         self.rub_label.pack(anchor="e")
 
     def create_block(self, title, default_coin, is_from):
         frame = tk.Frame(self.top, bg="#FFFFFF", highlightthickness=1, highlightbackground="#DDD")
 
-        # Увеличенные внутренние отступы
-        tk.Label(frame, text=title, font=("Segoe UI", 9), bg="#FFFFFF", fg="#666").pack(anchor="w", padx=12,
-                                                                                        pady=(10, 2))
+        tk.Label(frame, text=title, font=("Segoe UI", 9), bg="#FFFFFF", fg="#666").pack(anchor="w", padx=12, pady=(10, 2))
 
         row = tk.Frame(frame, bg="#FFFFFF")
         row.pack(fill="x", padx=12, pady=(0, 15))
@@ -336,22 +343,16 @@ class ConverterWindow:
             if not from_id or not to_id: return
 
             if from_id in ("usd", "eur", "rub"):
-                if from_id == "usd":
-                    from_to_usd = 1.0
-                elif from_id == "eur":
-                    from_to_usd = 1.0 / self.rates.get("usd_eur", 0.92)
-                elif from_id == "rub":
-                    from_to_usd = 1.0 / self.rates.get("usd_rub", 90.0)
+                if from_id == "usd": from_to_usd = 1.0
+                elif from_id == "eur": from_to_usd = 1.0 / self.rates.get("usd_eur", 0.92)
+                elif from_id == "rub": from_to_usd = 1.0 / self.rates.get("usd_rub", 90.0)
             else:
                 from_to_usd = self.rates.get(f"{from_id}_usd", 0)
 
             if to_id in ("usd", "eur", "rub"):
-                if to_id == "usd":
-                    usd_to_target = 1.0
-                elif to_id == "eur":
-                    usd_to_target = self.rates.get("usd_eur", 0.92)
-                elif to_id == "rub":
-                    usd_to_target = self.rates.get("usd_rub", 90.0)
+                if to_id == "usd": usd_to_target = 1.0
+                elif to_id == "eur": usd_to_target = self.rates.get("usd_eur", 0.92)
+                elif to_id == "rub": usd_to_target = self.rates.get("usd_rub", 90.0)
             else:
                 price_usd = self.rates.get(f"{to_id}_usd", 0)
                 usd_to_target = 1.0 / price_usd if price_usd else 0
